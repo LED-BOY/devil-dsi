@@ -900,10 +900,13 @@ if(NOSOUND)
 else()
   add_devilutionx_object_library(libdevilutionx_sound
     effects.cpp
-    engine/sound.cpp
-    utils/soundsample.cpp
+    $<$<NOT:$<BOOL:${NINTENDO_DSI}>>:engine/sound.cpp>
+    $<$<NOT:$<BOOL:${NINTENDO_DSI}>>:utils/soundsample.cpp>
+    $<$<BOOL:${NINTENDO_DSI}>:platform/dsi/sound_dsi.cpp>
   )
-  if(USE_SDL3)
+  if(NINTENDO_DSI)
+    # The bounded hardware SFX backend does not use SDL_audiolib or audio threads.
+  elseif(USE_SDL3)
     target_link_dependencies(libdevilutionx_sound PUBLIC
       SDL3_mixer::SDL3_mixer
     )
@@ -1176,7 +1179,7 @@ if(NOT NONET)
   endif()
 endif()
 
-if(NOT NOSOUND AND NOT USE_SDL3)
+if(NOT NOSOUND AND NOT USE_SDL3 AND NOT NINTENDO_DSI)
   target_link_libraries(libdevilutionx PUBLIC SDL_audiolib::SDL_audiolib)
 endif()
 

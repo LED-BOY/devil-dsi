@@ -4,7 +4,7 @@ An experimental, unofficial Nintendo DSi port of [DevilutionX](https://github.co
 
 **This is a modified DevilutionX source tree.** Upstream engine code, assets, authorship, and license notices are retained. This project is not an official DevilutionX release.
 
-## Current status: R5
+## Current status: R6 test2 (experimental)
 
 - Builds an actual DS/DSi `.nds` executable that calls the game engine.
 - Full game on the **bottom display**; a native-resolution map on top during gameplay.
@@ -12,14 +12,14 @@ An experimental, unofficial Nintendo DSi port of [DevilutionX](https://github.co
 - 640x480 indexed rendering downsampled to 256x192, with corrected SDL hardware-palette handling.
 - Nintendo button mappings and absolute touch-to-left-click input.
 - Fixed single-thread SDL event queue handling: previously the D-pad's held state worked while queued button, touch, and progress events were dropped.
-- Single-player target; sound and networking are disabled.
+- Experimental short WAV/ADPCM sound effects through the DSi hardware mixer; music and networking remain disabled. Settings -> Nintendo DSi -> Sound Effects can disable audio.
 - Persistent startup/loading trace at `sd:/devilutionx/dsi-startup.txt` and handled error output at `sd:/devilutionx/dsi-error.txt`.
 
-The user reports R3 working on a DSi; the supplied trace reached town and entered the game loop. **R5's settings and new controls still need hardware verification.** The actual SDL host tests pass input, palette, all three reading zooms/pixel bounds and configurable L-button input, reading-input isolation, separate display buffers, and console restoration checks. Actual map contents, VRAM configuration, transitions, and runtime performance remain hardware test items.
+The user reports R3 working on a DSi; the supplied trace reached town and entered the game loop. **The R6 changes and effects audio still need hardware verification.** The actual SDL host tests pass input, palette, all three reading zooms/pixel bounds and configurable L-button input, reading-input isolation, separate display buffers, and console restoration checks. Actual map contents, VRAM configuration, transitions, and runtime performance remain hardware test items.
 
 ## Next version
 
-R6 source changes add bottom-screen-only movies, configurable R-button actions, and a correction for stale inventory/belt focus during right-click. The SDL host regressions pass; an R6 cross-build and DSi verification are still pending. See the [R6 verification checklist](DSI_TODO.md) before treating this as a release.
+R6 test2 adds saved-message redraw cleanup, a black top screen during loading, and experimental effects-only hardware audio on top of the R6 movie/shoulder changes. Full cross-build and SDL host regressions pass; DSi testing remains pending. See [DSI_PORT.md](DSI_PORT.md) and the [hardware checklist](DSI_TODO.md).
 
 ## Nintendo DSi options
 
@@ -30,8 +30,12 @@ Open **Settings -> Nintendo DSi** from the main menu. The choices apply immediat
 | Menu Reading Zoom | 1.5x, 2x, 2.5x | 2x |
 | Top Map Zoom | Far (25%), Wide (35%), Close (50%) | Wide (35%) |
 | L Button Action | Right Mouse Button, Controller Shoulder, Disabled | Right Mouse Button |
+| R Button Action | Right Mouse Button, Controller Shoulder, Disabled | Controller Shoulder |
+| Sound Effects | On, Off | On (experimental) |
 
 Map percentages refer to map scale: lower values show more area. The new default is wider than R4. Reading zoom is relative to the complete bottom overview. L right-click uses the current pointer; L+touch moves the pointer without also left-clicking. Press L+R together in menus for the reader gesture. A brief 120 ms menu-only delay lets the chord cancel a pending right-click; gameplay right-click is immediate.
+
+Experimental SFX use a 1 MiB bounded cache; long clips and MP3 replacements may be skipped. Music and movie audio are unavailable. For a silent fallback before boot, put `Sound Effects=0` under `[Nintendo DSi]` in `diablo.ini`.
 
 ## Build on Windows
 
@@ -43,7 +47,7 @@ Install devkitPro's DS development tools, plus native Windows CMake and Ninja. T
 
 The first configuration fetches the pinned engine dependencies. SDL 1.2.15 source is included under `3rdParty/SDL12`. The expected output is `build-dsi/devilutionx-dsi.nds`, with generated `assets` and `mods` folders.
 
-See [DSI_PORT.md](DSI_PORT.md) for the implementation, diagnostics, revision history, and test instructions. [DSI_BUILD_INFO.json](DSI_BUILD_INFO.json) describes the tested local R5 cross-build; it is not a promise that a later build will have the same hash or memory footprint.
+See [DSI_PORT.md](DSI_PORT.md) for the implementation, diagnostics, revision history, and test instructions. [DSI_BUILD_INFO.json](DSI_BUILD_INFO.json) describes the tested local R6 test2 cross-build; it is not a promise that a later build will have the same hash or memory footprint.
 
 ## Install on DSi
 

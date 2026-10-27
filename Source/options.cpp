@@ -6,6 +6,7 @@
 #include "options.h"
 #ifdef __DSI__
 #include "platform/dsi/dsi_video.h"
+#include "platform/dsi/dsi_audio.h"
 #endif
 
 #include <algorithm>
@@ -235,6 +236,7 @@ void ApplyDsiOptions()
 	if (*options.rButton < DSI_L_CONTROLLER || *options.rButton > DSI_L_DISABLED)
 		options.rButton.SetValue(DSI_L_CONTROLLER);
 	DsiConfigureOptions(*options.menuZoom, *options.mapScale, *options.lButton, *options.rButton);
+	DsiAudioSetEnabled(*options.soundEffects);
 }
 } // namespace
 
@@ -248,16 +250,18 @@ DsiOptions::DsiOptions()
           { { DSI_L_RIGHT_MOUSE, N_("Right Mouse Button") }, { DSI_L_CONTROLLER, N_("Controller Shoulder") }, { DSI_L_DISABLED, N_("Disabled") } })
     , rButton("R Button", OptionEntryFlags::None, N_("R Button Action"), N_("Use R as right mouse button at the pointer, the original controller shoulder, or disable it. L+R still pans the menu reader."), DSI_L_CONTROLLER,
           { { DSI_L_RIGHT_MOUSE, N_("Right Mouse Button") }, { DSI_L_CONTROLLER, N_("Controller Shoulder") }, { DSI_L_DISABLED, N_("Disabled") } })
+    , soundEffects("Sound Effects", OptionEntryFlags::None, N_("Sound Effects"), N_("Experimental DSi hardware sound effects. Music and movie audio are not supported. Turn off to reduce memory and CPU use."), true)
 {
 	menuZoom.SetValueChangedCallback(ApplyDsiOptions);
 	mapScale.SetValueChangedCallback(ApplyDsiOptions);
 	lButton.SetValueChangedCallback(ApplyDsiOptions);
 	rButton.SetValueChangedCallback(ApplyDsiOptions);
+	soundEffects.SetValueChangedCallback(ApplyDsiOptions);
 }
 
 std::vector<OptionEntryBase *> DsiOptions::GetEntries()
 {
-	return { &menuZoom, &mapScale, &lButton, &rButton };
+	return { &menuZoom, &mapScale, &lButton, &rButton, &soundEffects };
 }
 #endif
 
@@ -571,6 +575,9 @@ AudioOptions::AudioOptions()
 }
 std::vector<OptionEntryBase *> AudioOptions::GetEntries()
 {
+#ifdef __DSI__
+	return { &soundVolume, &audioCuesVolume, &walkingSound, &autoEquipSound, &itemPickupSound };
+#else
 	// clang-format off
 	return {
 		&soundVolume,
@@ -589,6 +596,7 @@ std::vector<OptionEntryBase *> AudioOptions::GetEntries()
 #endif
 	};
 	// clang-format on
+#endif
 }
 
 OptionEntryResolution::OptionEntryResolution()

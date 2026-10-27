@@ -1,6 +1,9 @@
 #include <memory>
 #include <optional>
 #include <vector>
+#ifdef __DSI__
+#include "platform/dsi/dsi_video.h"
+#endif
 
 #ifdef USE_SDL3
 #include <SDL3/SDL_events.h>
@@ -105,6 +108,12 @@ void ProgressRenderForeground(int progress)
 
 bool UiProgressDialog(int (*fnfunc)())
 {
+#ifdef __DSI__
+	DsiSetLoading(1);
+	struct DsiLoadingGuard {
+		~DsiLoadingGuard() { DsiSetLoading(0); }
+	} dsiLoadingGuard;
+#endif
 	// Blit the background once and then free it.
 	ProgressLoadBackground();
 

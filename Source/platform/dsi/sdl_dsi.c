@@ -22,6 +22,8 @@ static int reading_percent = 200, map_scale = 35;
 static int shoulder_action[2] = { DSI_L_RIGHT_MOUSE, DSI_L_CONTROLLER };
 static int movie_active;
 static enum DsiTopView movie_restore_view;
+static int loading_depth;
+static enum DsiTopView loading_restore_view;
 
 void DsiConfigureOptions(int zoom, int scale, int l_action, int r_action)
 {
@@ -37,6 +39,7 @@ uint8_t *DsiMapBuffer(void) { return map_pixels; }
 
 void DsiSetTopView(enum DsiTopView view)
 {
+    if (loading_depth && view != DSI_TOP_MOVIE) { loading_restore_view = view; return; }
     if (movie_active && view != DSI_TOP_MOVIE) { movie_restore_view = view; return; }
     if (top_view == view) return;
     top_view = view;
@@ -57,6 +60,23 @@ void DsiSetTopView(enum DsiTopView view)
         for (int i = 0; i < 256; ++i) BG_PALETTE_SUB[i] = game_palette[i];
         bgShow(top_bg);
     }
+}
+
+void DsiSetLoading(int loading)
+{
+    if (loading) {
+        if (loading_depth++ != 0) return;
+        loading_restore_view = top_view;
+        DsiSetTopView(DSI_TOP_MOVIE);
+    } else if (loading_depth && --loading_depth == 0) {
+        DsiSetTopView(loading_restore_view);
+    }
+}
+
+void DsiRestoreDiagnostics(void)
+{
+    loading_depth = movie_active = 0;
+    DsiSetTopView(DSI_TOP_DIAGNOSTICS);
 }
 
 void DsiSetMoviePlaying(int playing)
@@ -168,6 +188,7 @@ static int set_colors(SDL_VideoDevice *_this, int first, int count, SDL_Color *c
 }
 static void video_quit(SDL_VideoDevice *_this)
 {
+    loading_depth = 0;
     movie_active = 0;
     DsiSetTopView(DSI_TOP_DIAGNOSTICS);
     SDL_free(_this->hidden->pixels); _this->hidden->pixels = NULL;

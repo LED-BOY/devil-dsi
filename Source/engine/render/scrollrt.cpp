@@ -1839,6 +1839,9 @@ void DrawAndBlit()
 	if (!gbRunGame || HeadlessMode) {
 		return;
 	}
+	// Expire overlays before calculating redraw flags and painting this frame.
+	// Expiring after drawing leaves the final message baked into a direct surface.
+	UpdateDiabloMessages();
 
 #ifdef __DSI__
 	const bool readingMenu = gmenu_is_active() || invflag || SpellbookFlag

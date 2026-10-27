@@ -893,6 +893,7 @@ struct DsiOptions : OptionCategoryBase {
 	OptionEntryEnum<int> mapScale;
 	OptionEntryEnum<int> lButton;
 	OptionEntryEnum<int> rButton;
+	OptionEntryBoolean soundEffects;
 };
 #endif
 

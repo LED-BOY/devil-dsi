@@ -1,4 +1,7 @@
 #pragma once
+#ifdef __DSI__
+#include "platform/dsi/sound_sample.h"
+#else
 
 #include <cstddef>
 #include <cstdint>
@@ -125,3 +128,4 @@ private:
 };
 
 } // namespace devilution
+#endif

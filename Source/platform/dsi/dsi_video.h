@@ -16,6 +16,8 @@ void DsiConfigureOptions(int reading_percent, int map_scale, int l_action, int r
 int DsiTopMapScale(void);
 void DsiSetTopView(enum DsiTopView view);
 void DsiSetMoviePlaying(int playing);
+void DsiSetLoading(int loading);
+void DsiRestoreDiagnostics(void);
 void DsiSetReadingFocus(int x, int y);
 uint8_t *DsiMapBuffer(void);
 

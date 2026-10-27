@@ -561,7 +561,7 @@ bool SpawnWindow(const char *lpWindowName)
 #ifndef __DSI__
 	initFlags |= SDL_INIT_JOYSTICK;
 #endif
-#ifndef NOSOUND
+#if !defined(NOSOUND) && !defined(__DSI__)
 	initFlags |= SDL_INIT_AUDIO;
 #endif
 #ifndef USE_SDL1

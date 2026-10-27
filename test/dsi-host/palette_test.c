@@ -7,6 +7,7 @@
 #undef main
 #include "r5_settings_test.h"
 #include "r6_test.h"
+#include "audio_test.h"
 
 volatile uint16_t host_palette[256], host_vram[32768];
 volatile uint16_t host_sub_palette[256], host_sub_vram[32768];
@@ -200,6 +201,24 @@ int main(void)
     }
     if (!CheckR5Settings(screen)) return 1;
     if (!CheckR6(screen)) { puts("FAIL: R6 regression"); return 1; }
+    if (!CheckAudio()) { puts("FAIL: audio regression"); return 1; }
+    DsiSetTopView(DSI_TOP_MENU);
+    DsiSetLoading(1);
+    DsiSetLoading(1);
+    DsiSetTopView(DSI_TOP_MAP);
+    SDL_Color loading_color = { 0, 255, 0, 0 };
+    SDL_SetColors(screen, &loading_color, 0, 1);
+    SDL_Flip(screen);
+    if ((host_visible_backgrounds & ((1u<<4)|(1u<<7))) || host_sub_palette[0]) { puts("FAIL: black loading screen"); return 1; }
+    DsiSetLoading(0);
+    if (host_visible_backgrounds & (1u<<7)) { puts("FAIL: nested loading ended early"); return 1; }
+    DsiSetLoading(0);
+    if (!(host_visible_backgrounds & (1u<<7))) return 1;
+    DsiSetLoading(1);
+    DsiSetMoviePlaying(1);
+    DsiRestoreDiagnostics();
+    if (!(host_visible_backgrounds & (1u<<4)) || (host_visible_backgrounds & (1u<<7))) return 1;
+    puts("PASS: black loading screen, nested restoration and fatal console override");
     SDL_FreeSurface(image);
     SDL_Quit();
     puts("PASS: R3 input/palette/pixels; R4 native menu crop, manual pan, input isolation, independent map, console restoration, tiny/invalid sources");

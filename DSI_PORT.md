@@ -1,5 +1,33 @@
 # Experimental Nintendo DSi engine integration
 
+## R6 test2: messages, loading screen and experimental effects audio
+
+- Message expiry now runs before the frame redraw decision. Expiry, dismissal,
+  and clearing invalidate the background, so the last saved-message frame is
+  repainted instead of remaining baked into the direct framebuffer.
+- Game/level loading and UI progress dialogs hold the top display black through
+  palette changes. Nested loading restores the intended menu/map view only on
+  final completion. Fatal error output overrides loading/movie blackout.
+- Experimental sound effects use the Calico ARM7 sound service: up to 16 mono
+  PCM hardware voices with positional panning, original sample rates, and the
+  existing SFX/user volume settings. No audio thread or SDL_audiolib is used.
+- SDL's WAV decoder accepts PCM and ADPCM; stereo input is downmixed to mono.
+  Samples are decoded lazily. Input WAVs are limited to 128 KiB, each decoded
+  sample to 256 KiB, and the shared LRU cache to 1 MiB. Active channels pin their
+  PCM until ARM7 completes/stops playback. Oversized/unsupported effects are
+  skipped; long voices, MP3 replacements, music and movie audio are not supported.
+- Settings -> Nintendo DSi -> **Sound Effects** toggles the backend immediately.
+  To disable it before startup, set `Sound Effects=0` under `[Nintendo DSi]` in
+  `sd:/devilutionx/diablo.ini`. The default is on. The first few successful and
+  skipped samples are recorded in the startup log for hardware diagnosis.
+
+Actual SDL host tests pass PCM8/stereo16/IMA decoding and sample values,
+volume/pan, cache reuse/eviction/pinning and the 1 MiB limit, channel saturation,
+mute/missing/oversized inputs, enable/disable/shutdown, black loading screens,
+nested restoration, fatal console override, and previous R3-R6 regressions.
+The complete devkitARM build passes. Audible playback, game-save notification
+removal, loading transitions, and the potion issue still need DSi testing.
+
 ## R6 source changes (hardware verification pending)
 
 - Movies use only the bottom display. The top bitmap and console are hidden
