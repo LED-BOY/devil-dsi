@@ -52,4 +52,3 @@ The engine is from [diasurgical/DevilutionX](https://github.com/diasurgical/Devi
 See [LICENSE.md](LICENSE.md) for the upstream Sustainable Use License and the individual third-party notices. SDL 1.2.15 is LGPL-2.1-or-later; its complete source and license are retained. No claim is made that the entire source tree has one uniform license.
 
 Upstream CI workflow files are preserved in `.github/upstream-workflows/` as references. They are not enabled automatically in this DSi repository; no hosted DSi build workflow has been validated yet.
-
