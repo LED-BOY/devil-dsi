@@ -232,27 +232,32 @@ void ApplyDsiOptions()
 		options.mapScale.SetValue(35);
 	if (*options.lButton < DSI_L_CONTROLLER || *options.lButton > DSI_L_DISABLED)
 		options.lButton.SetValue(DSI_L_RIGHT_MOUSE);
-	DsiConfigureOptions(*options.menuZoom, *options.mapScale, *options.lButton);
+	if (*options.rButton < DSI_L_CONTROLLER || *options.rButton > DSI_L_DISABLED)
+		options.rButton.SetValue(DSI_L_CONTROLLER);
+	DsiConfigureOptions(*options.menuZoom, *options.mapScale, *options.lButton, *options.rButton);
 }
 } // namespace
 
 DsiOptions::DsiOptions()
-    : OptionCategoryBase("Nintendo DSi", N_("Nintendo DSi"), N_("Top-screen reading zoom, gameplay map, and L button."))
+    : OptionCategoryBase("Nintendo DSi", N_("Nintendo DSi"), N_("Top-screen reading zoom, gameplay map, and shoulder buttons."))
     , menuZoom("Menu Zoom", OptionEntryFlags::None, N_("Menu Reading Zoom"), N_("Top-screen menu magnification relative to the bottom overview. Hold L+R to pan with the D-pad or touch."), 200,
           { { 150, "1.5x" }, { 200, "2x" }, { 250, "2.5x" } })
     , mapScale("Map Scale", OptionEntryFlags::None, N_("Top Map Zoom"), N_("Smaller percentages show more of the explored map on the top screen during gameplay."), 35,
           { { 25, N_("Far (25%)") }, { 35, N_("Wide (35%)") }, { 50, N_("Close (50%)") } })
     , lButton("L Button", OptionEntryFlags::None, N_("L Button Action"), N_("Use L as right mouse button at the pointer, the original controller shoulder, or disable it. L+R still pans the menu reader."), DSI_L_RIGHT_MOUSE,
           { { DSI_L_RIGHT_MOUSE, N_("Right Mouse Button") }, { DSI_L_CONTROLLER, N_("Controller Shoulder") }, { DSI_L_DISABLED, N_("Disabled") } })
+    , rButton("R Button", OptionEntryFlags::None, N_("R Button Action"), N_("Use R as right mouse button at the pointer, the original controller shoulder, or disable it. L+R still pans the menu reader."), DSI_L_CONTROLLER,
+          { { DSI_L_RIGHT_MOUSE, N_("Right Mouse Button") }, { DSI_L_CONTROLLER, N_("Controller Shoulder") }, { DSI_L_DISABLED, N_("Disabled") } })
 {
 	menuZoom.SetValueChangedCallback(ApplyDsiOptions);
 	mapScale.SetValueChangedCallback(ApplyDsiOptions);
 	lButton.SetValueChangedCallback(ApplyDsiOptions);
+	rButton.SetValueChangedCallback(ApplyDsiOptions);
 }
 
 std::vector<OptionEntryBase *> DsiOptions::GetEntries()
 {
-	return { &menuZoom, &mapScale, &lButton };
+	return { &menuZoom, &mapScale, &lButton, &rButton };
 }
 #endif
 

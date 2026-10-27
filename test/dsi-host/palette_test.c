@@ -6,6 +6,7 @@
 #include "dsi_video.h"
 #undef main
 #include "r5_settings_test.h"
+#include "r6_test.h"
 
 volatile uint16_t host_palette[256], host_vram[32768];
 volatile uint16_t host_sub_palette[256], host_sub_vram[32768];
@@ -30,7 +31,7 @@ int main(void)
 {
     for (int i = 0; i < 256; ++i) host_sub_palette[i] = (uint16_t)(0x7000 + i);
     if (DsiTopMapScale() != 35) { puts("FAIL: default wider map scale"); return 1; }
-    DsiConfigureOptions(250, 50, DSI_L_CONTROLLER);
+    DsiConfigureOptions(250, 50, DSI_L_CONTROLLER, DSI_L_CONTROLLER);
     if (SDL_Init(SDL_INIT_VIDEO) != 0) { puts(SDL_GetError()); return 1; }
     SDL_Surface *screen = SDL_SetVideoMode(640, 480, 8, SDL_FULLSCREEN | SDL_HWPALETTE);
     if (!screen) { puts(SDL_GetError()); return 1; }
@@ -198,6 +199,7 @@ int main(void)
         puts("FAIL: invalid reading arguments accepted"); return 1;
     }
     if (!CheckR5Settings(screen)) return 1;
+    if (!CheckR6(screen)) { puts("FAIL: R6 regression"); return 1; }
     SDL_FreeSurface(image);
     SDL_Quit();
     puts("PASS: R3 input/palette/pixels; R4 native menu crop, manual pan, input isolation, independent map, console restoration, tiny/invalid sources");

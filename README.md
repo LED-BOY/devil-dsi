@@ -19,7 +19,7 @@ The user reports R3 working on a DSi; the supplied trace reached town and entere
 
 ## Next version
 
-See the [R6 DSi to-do list](DSI_TODO.md) for single-screen video playback, the reported L/right-click potion issue, and configurable R-button actions.
+R6 source changes add bottom-screen-only movies, configurable R-button actions, and a correction for stale inventory/belt focus during right-click. The SDL host regressions pass; an R6 cross-build and DSi verification are still pending. See the [R6 verification checklist](DSI_TODO.md) before treating this as a release.
 
 ## Nintendo DSi options
 

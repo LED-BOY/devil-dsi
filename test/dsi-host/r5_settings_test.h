@@ -5,7 +5,7 @@ static int CheckR5Settings(SDL_Surface *screen)
     const int zooms[] = { 150, 200, 250 };
     const int scales[] = { 25, 35, 50 };
     for (int choice = 0; choice < 3; ++choice) {
-        DsiConfigureOptions(zooms[choice], scales[choice], DSI_L_CONTROLLER);
+        DsiConfigureOptions(zooms[choice], scales[choice], DSI_L_CONTROLLER, DSI_L_CONTROLLER);
         if (DsiTopMapScale() != scales[choice]) { puts("FAIL: configurable map scale"); return 0; }
         DsiSetTopView(DSI_TOP_MENU);
         DsiSetReadingFocus(320 + choice, 240); /* distinct focus to reset manual pan */
@@ -28,7 +28,7 @@ static int CheckR5Settings(SDL_Surface *screen)
                 }
             }
     }
-    DsiConfigureOptions(-1, 0, 99); /* Invalid configuration safely restores defaults. */
+    DsiConfigureOptions(-1, 0, 99, DSI_L_CONTROLLER); /* Invalid configuration safely restores defaults. */
     if (DsiTopMapScale() != 35) return 0;
     DsiSetReadingFocus(320, 240);
     SDL_Flip(screen);
@@ -52,7 +52,7 @@ static int CheckR5Settings(SDL_Surface *screen)
         puts("FAIL: default L right mouse down/state"); return 0;
     }
     /* A setting change while L is held must release the action that was pressed. */
-    DsiConfigureOptions(200, 35, DSI_L_CONTROLLER);
+    DsiConfigureOptions(200, 35, DSI_L_CONTROLLER, DSI_L_CONTROLLER);
     host_key_state = 0;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_KEYUP) { puts("FAIL: L released wrong mapping"); return 0; }
@@ -62,7 +62,7 @@ static int CheckR5Settings(SDL_Surface *screen)
         puts("FAIL: L right mouse release/state"); return 0;
     }
 
-    DsiConfigureOptions(200, 35, DSI_L_RIGHT_MOUSE);
+    DsiConfigureOptions(200, 35, DSI_L_RIGHT_MOUSE, DSI_L_CONTROLLER);
     DsiSetTopView(DSI_TOP_MENU);
     host_key_state = KEY_L;
     while (SDL_PollEvent(&event))
@@ -117,7 +117,7 @@ static int CheckR5Settings(SDL_Surface *screen)
     if (right_down != 1) { puts("FAIL: L+touch right-click coordinates"); return 0; }
     host_key_state = 0;
     while (SDL_PollEvent(&event)) { }
-    DsiConfigureOptions(200, 35, DSI_L_DISABLED);
+    DsiConfigureOptions(200, 35, DSI_L_DISABLED, DSI_L_CONTROLLER);
     host_key_state = KEY_L;
     while (SDL_PollEvent(&event))
         if (event.type == SDL_KEYDOWN || event.type == SDL_MOUSEBUTTONDOWN) {
@@ -125,7 +125,7 @@ static int CheckR5Settings(SDL_Surface *screen)
         }
     host_key_state = 0;
     while (SDL_PollEvent(&event)) { }
-    DsiConfigureOptions(200, 35, DSI_L_CONTROLLER);
+    DsiConfigureOptions(200, 35, DSI_L_CONTROLLER, DSI_L_CONTROLLER);
     host_key_state = KEY_L;
     int shoulder_down = 0;
     while (SDL_PollEvent(&event))

@@ -1,5 +1,37 @@
 # Experimental Nintendo DSi engine integration
 
+## R6 source changes (hardware verification pending)
+
+- Movies use only the bottom display. The top bitmap and console are hidden
+  against a black backdrop during playback; normal completion, skipping, or
+  failure to open a movie restores the previous top view. Palette changes do
+  not recolor the black top backdrop.
+- Settings -> Nintendo DSi now includes **R Button Action**, with Right Mouse
+  Button, Controller Shoulder, and Disabled. R defaults to Controller Shoulder
+  to preserve R5 behavior. It uses `R Button=0` in the existing settings section;
+  values 0/1/2 have the same meaning as L. The normal settings flow saves it.
+- Both shoulders release their original action on the next input pump after a
+  mapping change, then wait for physical release before accepting a new action.
+  Right-click mappings emit no controller shoulder key. Two right-click
+  shoulders share one mouse hold. Either shoulder + touch moves the pointer;
+  lifting the shoulder first does not create an extra left click.
+- DSi right-click rechecks inventory/belt hit targets at the current pointer.
+  This addresses a possible potion-use path through stale controller focus
+  after a touch or cursor warp. Intentional right-click on a belt potion or
+  inventory item retains normal item-use behavior. The reported hardware
+  symptom is not yet confirmed fixed.
+- L+R reading remains available with all mappings. Both right-click mappings
+  use the menu chord delay; gameplay clicks remain immediate.
+
+Run `python test/dsi-host/run.py` with `TCC` pointing to a Windows Tiny C
+Compiler executable. The actual SDL core/driver tests pass the R3-R5 regressions
+and new R6 checks for both shoulders, holds, live remapping, touch, quick menu
+clicks, reader chords in either order, overlapping mouse holds, and movie
+frame/palette/view isolation. These tests do not run the engine's potion logic
+or settings UI/persistence. No R6 NDS was cross-built in this environment
+(devkitPro is unavailable). Use the [hardware checklist](DSI_TODO.md) before
+publishing an R6 build; existing build metadata still describes R5.
+
 ## R5: configurable reading, map and L button
 
 Open **Options -> Nintendo DSi** (main-menu Settings) to configure:

@@ -472,6 +472,13 @@ void RightMouseDown(bool isShiftHeld)
 		return;
 	if (TryIconCurs())
 		return;
+#ifdef __DSI__
+	// A touch or controller warp may precede this click in the same event batch.
+	// Hit-test the pointer instead of using last frame's inventory/belt focus.
+	pcursinvitem = (GetMainPanel().contains(MousePosition)
+	                  || (invflag && GetRightPanel().contains(MousePosition)))
+	    ? CheckInvHLight() : -1;
+#endif
 	if (pcursinvitem != -1 && UseInvItem(pcursinvitem))
 		return;
 	if (pcursstashitem != StashStruct::EmptyCell && UseStashItem(pcursstashitem))

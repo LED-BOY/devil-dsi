@@ -1,9 +1,27 @@
-# Next DSi version — R6 to-do
+# Next DSi version — R6 verification
 
-These items are planned and are not implemented in R5.
+Source implementations are present and the SDL host regressions pass. The items
+remain unchecked until a cross-build and DSi testing confirm them. No R6 build
+has been published; `DSI_BUILD_INFO.json` still describes R5.
 
-- [ ] **Play videos on one screen only.** Use the bottom game display for movies, suppress the top-screen reader/map during playback, and restore the appropriate top view when a movie ends or is skipped.
-- [ ] **Fix L right-click consuming a potion.** The user reports this in R5. When L is set to Right Mouse Button, it must not also trigger the controller shoulder or an automatic potion action. Check press, hold, release, touch combinations, and the L+R reading gesture; verify potion counts remain unchanged during ordinary right-click use.
-- [ ] **Add R Button Action to Settings → Nintendo DSi.** Offer the same choices as L: Right Mouse Button, Controller Shoulder, and Disabled. Save the selection in the existing settings file, apply changes immediately, release the action originally pressed if the mapping changes while held, and preserve the L+R reader gesture.
+- [ ] **Play videos on one screen only.** Check intro, normal completion,
+  skipping, a missing movie, and in-game playback. Only the bottom screen should
+  show the movie; the top should stay black through palette changes. Afterwards,
+  verify the appropriate menu reader, gameplay map, or startup console returns.
+- [ ] **Fix L right-click consuming a potion.** Right-click mode must emit no
+  controller shoulder action. Record belt potion counts before and after press,
+  hold, release, touch combinations (including shoulder-up before touch-up),
+  cursor warps away from belt/inventory, and the L+R reader gesture. Ordinary
+  right-click away from items must not consume a potion. Intentional right-click
+  directly on a usable item retains the engine's normal use behavior. The source
+  now refreshes the item hit test at click time to avoid stale controller focus;
+  the reported R5 hardware issue still needs reproduction and confirmation.
+- [ ] **R Button Action in Settings -> Nintendo DSi.** Check Right Mouse Button,
+  Controller Shoulder (the default), and Disabled. Verify changes apply live and
+  persist after exiting settings and restarting. Change mappings while held and
+  confirm the original action releases without firing the new action. Test both
+  shoulders mapped to right-click, overlapping holds, R+touch, quick/held menu
+  clicks, and L+R reader gestures in either press/release order and all mappings.
 
-Verify these changes on a DSi before marking them complete or publishing the next build.
+Before release, cross-build with `Build-DSi.ps1`, test on a DSi, and record the
+actual build details. Keep these boxes unchecked until hardware verification.

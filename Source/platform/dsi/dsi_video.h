@@ -10,11 +10,12 @@ enum { DSI_WIDTH = 256, DSI_HEIGHT = 192 };
 extern "C" {
 #endif
 
-enum DsiTopView { DSI_TOP_DIAGNOSTICS, DSI_TOP_MENU, DSI_TOP_MAP };
+enum DsiTopView { DSI_TOP_DIAGNOSTICS, DSI_TOP_MENU, DSI_TOP_MAP, DSI_TOP_MOVIE };
 enum DsiLAction { DSI_L_CONTROLLER, DSI_L_RIGHT_MOUSE, DSI_L_DISABLED };
-void DsiConfigureOptions(int reading_percent, int map_scale, int l_action);
+void DsiConfigureOptions(int reading_percent, int map_scale, int l_action, int r_action);
 int DsiTopMapScale(void);
 void DsiSetTopView(enum DsiTopView view);
+void DsiSetMoviePlaying(int playing);
 void DsiSetReadingFocus(int x, int y);
 uint8_t *DsiMapBuffer(void);
 
