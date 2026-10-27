@@ -4,18 +4,30 @@ An experimental, unofficial Nintendo DSi port of [DevilutionX](https://github.co
 
 **This is a modified DevilutionX source tree.** Upstream engine code, assets, authorship, and license notices are retained. This project is not an official DevilutionX release.
 
-## Current status: R4
+## Current status: R5
 
 - Builds an actual DS/DSi `.nds` executable that calls the game engine.
 - Full game on the **bottom display**; a native-resolution map on top during gameplay.
-- Menus and in-game panels switch the top screen to a native-pixel reading zoom. Hold **L+R** and use the D-pad to pan, or touch the bottom overview to center the reading view without clicking. Release gesture keys before navigating normally.
+- Menus and in-game panels switch the top screen to a configurable reading zoom (1.5x / 2x / 2.5x, default 2x). Hold **L+R** and use the D-pad to pan, or touch the bottom overview to center the reading view without clicking. Release gesture keys before navigating normally.
 - 640x480 indexed rendering downsampled to 256x192, with corrected SDL hardware-palette handling.
 - Nintendo button mappings and absolute touch-to-left-click input.
 - Fixed single-thread SDL event queue handling: previously the D-pad's held state worked while queued button, touch, and progress events were dropped.
 - Single-player target; sound and networking are disabled.
 - Persistent startup/loading trace at `sd:/devilutionx/dsi-startup.txt` and handled error output at `sd:/devilutionx/dsi-error.txt`.
 
-The user reports R3 working on a DSi; the supplied trace reached town and entered the game loop. **R4's menu zoom and top map still need hardware verification.** The actual SDL host tests pass input, palette, native reading pixels/bounds, reading-input isolation, separate display buffers, and console restoration checks. Actual map contents, VRAM configuration, transitions, and runtime performance remain hardware test items.
+The user reports R3 working on a DSi; the supplied trace reached town and entered the game loop. **R5's settings and new controls still need hardware verification.** The actual SDL host tests pass input, palette, all three reading zooms/pixel bounds and configurable L-button input, reading-input isolation, separate display buffers, and console restoration checks. Actual map contents, VRAM configuration, transitions, and runtime performance remain hardware test items.
+
+## Nintendo DSi options
+
+Open **Settings -> Nintendo DSi** from the main menu. The choices apply immediately and save through the normal settings flow to `sd:/devilutionx/diablo.ini`.
+
+| Setting | Choices | Default |
+| --- | --- | --- |
+| Menu Reading Zoom | 1.5x, 2x, 2.5x | 2x |
+| Top Map Zoom | Far (25%), Wide (35%), Close (50%) | Wide (35%) |
+| L Button Action | Right Mouse Button, Controller Shoulder, Disabled | Right Mouse Button |
+
+Map percentages refer to map scale: lower values show more area. The new default is wider than R4. Reading zoom is relative to the complete bottom overview. L right-click uses the current pointer; L+touch moves the pointer without also left-clicking. Press L+R together in menus for the reader gesture. A brief 120 ms menu-only delay lets the chord cancel a pending right-click; gameplay right-click is immediate.
 
 ## Build on Windows
 
@@ -27,7 +39,7 @@ Install devkitPro's DS development tools, plus native Windows CMake and Ninja. T
 
 The first configuration fetches the pinned engine dependencies. SDL 1.2.15 source is included under `3rdParty/SDL12`. The expected output is `build-dsi/devilutionx-dsi.nds`, with generated `assets` and `mods` folders.
 
-See [DSI_PORT.md](DSI_PORT.md) for the implementation, diagnostics, revision history, and test instructions. [DSI_BUILD_INFO.json](DSI_BUILD_INFO.json) describes the tested local R4 cross-build; it is not a promise that a later build will have the same hash or memory footprint.
+See [DSI_PORT.md](DSI_PORT.md) for the implementation, diagnostics, revision history, and test instructions. [DSI_BUILD_INFO.json](DSI_BUILD_INFO.json) describes the tested local R5 cross-build; it is not a promise that a later build will have the same hash or memory footprint.
 
 ## Install on DSi
 

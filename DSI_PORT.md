@@ -1,6 +1,54 @@
 # Experimental Nintendo DSi engine integration
 
-## R4: menu reader and gameplay map
+## R5: configurable reading, map and L button
+
+Open **Options -> Nintendo DSi** (main-menu Settings) to configure:
+
+| Setting | Choices | Default |
+| --- | --- | --- |
+| Menu Reading Zoom | 1.5x, 2x, 2.5x | 2x |
+| Top Map Zoom | Far (25%), Wide (35%), Close (50%) | Wide (35%) |
+| L Button Action | Right Mouse Button, Controller Shoulder, Disabled | Right Mouse Button |
+
+Reading zoom is relative to the complete bottom overview: at 640x480, the
+source windows are 426x320, 320x240, and 256x192 respectively. Each fills the
+top LCD with nearest-neighbour sampling. R4 used the equivalent of 2.5x.
+The new map default (35%) is wider than R4's 50%; 25% shows still more area.
+Only the top map is affected. The bottom map's scale/type/offset are preserved.
+
+Changes apply immediately and use the engine's normal configuration save
+when leaving Settings or exiting normally, in `sd:/devilutionx/diablo.ini`:
+
+```ini
+[Nintendo DSi]
+Menu Zoom=200
+Map Scale=35
+L Button=1
+```
+
+Menu Zoom accepts 150/200/250; Map Scale accepts 25/35/50; L Button uses
+1=right mouse, 0=controller shoulder, 2=disabled. Missing/invalid values use
+the defaults shown above. Do not replace your existing settings file to upgrade.
+
+L presses/releases the right mouse button at the current pointer. In this
+mode, holding L while touching moves the pointer without generating a left
+click too. Controller Shoulder restores the previous L gamepad behavior.
+The L action is latched until release, so changing its setting while held
+cannot leave a mouse button or keyboard key pressed.
+
+Press **L+R together** in a menu to pan the reader with D-pad or touch; this
+works in all L modes. Menu right-click waits up to 120 ms for that chord,
+while a quick L tap still clicks on release. Gameplay right-click is immediate.
+Reading gestures stay consumed until the physical keys are released.
+
+The actual SDL host test covers all pixels at all three zoom settings, edge
+clamps, map-scale choices/defaults, L right-click coordinates and held state,
+quick taps, delayed menu presses, chord cancellation, remapping while held,
+disabled/restored shoulder modes, and L+touch input. R5 builds successfully,
+but its settings menu, saved preferences and live behavior still need DSi
+hardware verification. R3 is the last user-reported working revision.
+
+## R4: menu reader and gameplay map (historical)
 
 - The complete 640x480 game stays on the 256x192 bottom display.
 - Menus use a native 256x192 crop on top: one source pixel per LCD pixel,

@@ -1,10 +1,10 @@
 {
-  "status": "R4 menu-only native reading zoom and native gameplay automap; hardware untested",
+  "status": "R5 configurable 1.5/2/2.5x reading zoom, 25/35/50% top map, and L right mouse; hardware untested",
   "previous_hardware_report": "User reports R3 working; R3 trace reached town and game loop at heap_used=7297056",
-  "input_regression_test": "Actual SDL core: R3 controls plus independent top map/bottom game buffers, native menu crop/edges, reading-input isolation, gameplay shoulders, palette/console restoration passed",
+  "input_regression_test": "Actual SDL core: R3 controls plus independent top map/bottom game buffers, all 3 reading zooms/pixels/edges, map scales/defaults, L right-click/taps/hold/remap/disabled/controller, L+touch, chord isolation, palette/console restoration passed",
   "palette_regression_test": "R1 failure reproduced; R2 passed actual SDL core with simulated hardware",
-  "rom_bytes": 2148352,
-  "rom_sha256": "7baa3ebbe38e67b4fa35135d3c98dda76d9c34b98581641f9163bb8bad8fdb1c",
+  "rom_bytes": 2149376,
+  "rom_sha256": "235acb3360f3add636854ca123061aa933093feb07e00d6986646bcc30b1ccc6",
   "rom_unit_code": 2,
   "header_crc16": "verified",
   "rom_segments": {
@@ -12,31 +12,31 @@
       "offset": 16384,
       "entry": "0x2004800",
       "ram": "0x2004000",
-      "bytes": 2051320
+      "bytes": 2053024
     },
     "arm7": {
-      "offset": 2067968,
+      "offset": 2069504,
       "entry": "0x2380000",
       "ram": "0x2380000",
       "bytes": 45940
     },
     "arm9i": {
-      "offset": 2117632,
+      "offset": 2118656,
       "entry": "0x0",
       "ram": "0x2400000",
       "bytes": 12
     },
     "arm7i": {
-      "offset": 2118144,
+      "offset": 2119168,
       "entry": "0x3807558",
       "ram": "0x2e80000",
       "bytes": 30004
     }
   },
   "arm9_elf": {
-    "text": 2037912,
-    "data": 13420,
-    "bss": 697332,
+    "text": 2039600,
+    "data": 13436,
+    "bss": 697572,
     "note": "Includes reserved 128 KiB engine stack; excludes dynamic heap and loaded game assets"
   },
   "hardware_tested": false,

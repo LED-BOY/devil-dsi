@@ -4,6 +4,9 @@
  * Implementation of the in-game map overlay.
  */
 #include "automap.h"
+#ifdef __DSI__
+#include "platform/dsi/dsi_video.h"
+#endif
 
 #include <algorithm>
 #include <cstdint>
@@ -1901,7 +1904,7 @@ void DrawDsiAutomap(const Surface &out)
 	const int savedScale = AutoMapScale;
 	CurrentAutomapType = AutomapType::Opaque;
 	AutomapOffset = {};
-	AutoMapScale = 50;
+	AutoMapScale = DsiTopMapScale();
 	DsiDedicatedMap = true;
 	DrawAutomap(out);
 	DsiDedicatedMap = false;

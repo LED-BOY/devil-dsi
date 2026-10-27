@@ -885,7 +885,20 @@ private:
 	std::optional<std::forward_list<ModEntry>> modEntries;
 };
 
+#ifdef __DSI__
+struct DsiOptions : OptionCategoryBase {
+	DsiOptions();
+	std::vector<OptionEntryBase *> GetEntries() override;
+	OptionEntryEnum<int> menuZoom;
+	OptionEntryEnum<int> mapScale;
+	OptionEntryEnum<int> lButton;
+};
+#endif
+
 struct Options {
+#ifdef __DSI__
+	DsiOptions Dsi;
+#endif
 	GameModeOptions GameMode;
 	StartUpOptions StartUp;
 	DiabloOptions Diablo;
@@ -905,6 +918,9 @@ struct Options {
 	{
 		return {
 			&Language,
+#ifdef __DSI__
+			&Dsi,
+#endif
 			&Mods,
 			&GameMode,
 			&StartUp,

@@ -18,6 +18,16 @@ static uint8_t map_pixels[DSI_WIDTH * DSI_HEIGHT];
 static int reading_x = 320, reading_y = 240, focus_x = -1, focus_y = -1;
 static int manual_reading;
 static Uint32 next_pan;
+static int reading_percent = 200, map_scale = 35, l_action = DSI_L_RIGHT_MOUSE;
+
+void DsiConfigureOptions(int zoom, int scale, int action)
+{
+    reading_percent = (zoom == 150 || zoom == 250) ? zoom : 200;
+    map_scale = (scale == 25 || scale == 50) ? scale : 35;
+    l_action = (action >= DSI_L_CONTROLLER && action <= DSI_L_DISABLED) ? action : DSI_L_RIGHT_MOUSE;
+}
+
+int DsiTopMapScale(void) { return map_scale; }
 
 uint8_t *DsiMapBuffer(void) { return map_pixels; }
 
@@ -114,7 +124,7 @@ static void update(SDL_VideoDevice *_this, int count, SDL_Rect *rects)
         bgGetGfxPtr(_this->hidden->bg), 128);
     if (top_view == DSI_TOP_MENU)
         dsi_present_reading_index8(surface->pixels, surface->w, surface->h,
-            surface->pitch, reading_x, reading_y, bgGetGfxPtr(top_bg), 128);
+            surface->pitch, reading_x, reading_y, reading_percent, bgGetGfxPtr(top_bg), 128);
     else if (top_view == DSI_TOP_MAP)
         dsi_present_index8(map_pixels, DSI_WIDTH, DSI_HEIGHT, DSI_WIDTH,
             bgGetGfxPtr(top_bg), 128);
@@ -155,6 +165,8 @@ static void pump_events(SDL_VideoDevice *_this)
     static int mouse_x, mouse_y;
     static unsigned logged_buttons;
     static u32 delivered_keys, blocked_keys;
+    static int active_l_action, l_mouse_down, l_pending;
+    static Uint32 l_press_time;
     scanKeys();
     u32 held = keysHeld();
     const int reading_control = top_view == DSI_TOP_MENU
@@ -185,8 +197,10 @@ static void pump_events(SDL_VideoDevice *_this)
     u32 effective_keys = held & ~blocked_keys;
     u32 down = effective_keys & ~delivered_keys, up = delivered_keys & ~effective_keys;
     delivered_keys = effective_keys;
+    if (down & KEY_L) active_l_action = l_action; /* latch through release, even if options change */
     if (down & 0xfff) { manual_reading = 0; focus_x = focus_y = -1; }
     for (int i = 0; i < 12; ++i) {
+        if (i == 9 && active_l_action != DSI_L_CONTROLLER) continue;
         SDL_keysym sym = { .scancode = i, .sym = keys[i], .mod = KMOD_NONE, .unicode = 0 };
         if (down & (1u << i)) {
             int posted = SDL_PrivateKeyboard(SDL_PRESSED, &sym);
@@ -202,11 +216,37 @@ static void pump_events(SDL_VideoDevice *_this)
         mouse_x = dsi_source_coordinate(touch.px, 256, _this->screen->w);
         mouse_y = dsi_source_coordinate(touch.py, 192, _this->screen->h);
         SDL_PrivateMouseMotion(0, 0, mouse_x, mouse_y);
-        if (!touched) SDL_PrivateMouseButton(SDL_PRESSED, SDL_BUTTON_LEFT, mouse_x, mouse_y);
+    }
+    const int left_touch = _this->screen && (effective_keys & KEY_TOUCH)
+        && !((effective_keys & KEY_L) && active_l_action == DSI_L_RIGHT_MOUSE);
+    if (left_touch && !touched) {
+        SDL_PrivateMouseButton(SDL_PRESSED, SDL_BUTTON_LEFT, mouse_x, mouse_y);
         touched = 1;
-    } else if (touched) {
+    } else if (!left_touch && touched) {
         SDL_PrivateMouseButton(SDL_RELEASED, SDL_BUTTON_LEFT, mouse_x, mouse_y);
         touched = 0;
+    }
+    /* Use SDL's pointer state, including game/controller cursor warps. In menus,
+     * allow 120 ms to complete L+R before emitting right-click. A quick L tap
+     * still clicks on release; the reading chord cancels the pending click. */
+    SDL_GetMouseState(&mouse_x, &mouse_y);
+    if ((down & KEY_L) && active_l_action == DSI_L_RIGHT_MOUSE) {
+        l_pending = 1;
+        l_press_time = SDL_GetTicks();
+    }
+    if ((up & KEY_L) && active_l_action == DSI_L_RIGHT_MOUSE) {
+        if (l_pending && !(blocked_keys & KEY_L))
+            SDL_PrivateMouseButton(SDL_PRESSED, SDL_BUTTON_RIGHT, mouse_x, mouse_y);
+        if (l_mouse_down || (l_pending && !(blocked_keys & KEY_L)))
+            SDL_PrivateMouseButton(SDL_RELEASED, SDL_BUTTON_RIGHT, mouse_x, mouse_y);
+        l_pending = l_mouse_down = 0;
+    }
+    if (reading_control) l_pending = 0;
+    if (l_pending && (effective_keys & KEY_L)
+        && (top_view != DSI_TOP_MENU || SDL_GetTicks() - l_press_time >= 120)) {
+        SDL_PrivateMouseButton(SDL_PRESSED, SDL_BUTTON_RIGHT, mouse_x, mouse_y);
+        l_mouse_down = 1;
+        l_pending = 0;
     }
     if (!pmMainLoop()) SDL_PrivateQuit();
 }

@@ -11,6 +11,9 @@ extern "C" {
 #endif
 
 enum DsiTopView { DSI_TOP_DIAGNOSTICS, DSI_TOP_MENU, DSI_TOP_MAP };
+enum DsiLAction { DSI_L_CONTROLLER, DSI_L_RIGHT_MOUSE, DSI_L_DISABLED };
+void DsiConfigureOptions(int reading_percent, int map_scale, int l_action);
+int DsiTopMapScale(void);
 void DsiSetTopView(enum DsiTopView view);
 void DsiSetReadingFocus(int x, int y);
 uint8_t *DsiMapBuffer(void);
@@ -26,10 +29,10 @@ int dsi_present_index8(const uint8_t *source, int width, int height,
 
 uint16_t dsi_palette_color(uint8_t red, uint8_t green, uint8_t blue);
 
-/* A native-size reading window, clamped to the source. Small modes are
- * edge-extended, so every output pixel is initialized without out-of-bounds reads. */
+/* Zoom relative to the complete bottom overview: 150, 200 or 250 percent.
+ * The source window is clamped to the source, including very small modes. */
 int dsi_present_reading_index8(const uint8_t *source, int width, int height,
-    size_t source_pitch, int center_x, int center_y,
+    size_t source_pitch, int center_x, int center_y, int zoom_percent,
     volatile uint16_t *destination, size_t destination_pitch);
 
 #ifdef __cplusplus
