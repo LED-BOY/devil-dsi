@@ -7,6 +7,8 @@
 #undef main
 
 volatile uint16_t host_palette[256], host_vram[32768];
+volatile uint16_t host_sub_palette[256], host_sub_vram[32768];
+unsigned host_visible_backgrounds;
 uint64_t host_ticks;
 u32 host_key_state, host_previous_keys, host_scanned_keys;
 touchPosition host_touch;
@@ -25,6 +27,7 @@ size_t strlcpy(char *destination, const char *source, size_t size)
 
 int main(void)
 {
+    for (int i = 0; i < 256; ++i) host_sub_palette[i] = (uint16_t)(0x7000 + i);
     if (SDL_Init(SDL_INIT_VIDEO) != 0) { puts(SDL_GetError()); return 1; }
     SDL_Surface *screen = SDL_SetVideoMode(640, 480, 8, SDL_FULLSCREEN | SDL_HWPALETTE);
     if (!screen) { puts(SDL_GetError()); return 1; }
@@ -105,8 +108,94 @@ int main(void)
         || event.type != SDL_USEREVENT || event.user.code != 42) {
         puts("FAIL: queued loading-progress/user event"); return 1;
     }
+
+    SDL_ShowCursor(SDL_DISABLE);
+    SDL_BlitSurface(image, NULL, screen, NULL);
+    DsiSetTopView(DSI_TOP_MENU);
+    DsiSetReadingFocus(320, 240);
+    SDL_Flip(screen);
+    if ((host_visible_backgrounds & (1u << 4)) || !(host_visible_backgrounds & (1u << 7))) {
+        puts("FAIL: top bitmap/console visibility"); return 1;
+    }
+    for (int i = 0; i < 256; ++i)
+        if (host_sub_palette[i] != host_palette[i]) { puts("FAIL: top game palette"); return 1; }
+    for (int y = 0; y < 192; ++y)
+        for (int x = 0; x < 256; ++x) {
+            unsigned char index = (unsigned char)(host_sub_vram[y * 128 + x / 2] >> (8 * (x % 2)));
+            if (index != (unsigned char)(192 + x + 3 * (144 + y))) {
+                printf("FAIL: native reading pixel %d,%d\n", x, y); return 1;
+            }
+        }
+    /* Reading gesture never clicks an item or sends shoulder/navigation keys.
+     * Consumed held keys remain blocked until physically released. */
+    host_touch.px = 255; host_touch.py = 191;
+    host_key_state = KEY_L | KEY_R | KEY_RIGHT | KEY_TOUCH;
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_KEYDOWN || event.type == SDL_MOUSEBUTTONDOWN) {
+            puts("FAIL: reading gesture leaked an activation"); return 1;
+        }
+    }
+    DsiSetReadingFocus(100, 100); /* normal render focus must not undo manual pan */
+    SDL_Flip(screen);
+    if ((unsigned char)host_sub_vram[0] != (unsigned char)(384 + 3 * 288)) {
+        puts("FAIL: reading edge clamp/manual focus"); return 1;
+    }
+    host_key_state = KEY_RIGHT | KEY_TOUCH;
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_KEYDOWN || event.type == SDL_MOUSEBUTTONDOWN) {
+            puts("FAIL: consumed reading keys reactivated before release"); return 1;
+        }
+    }
+    host_key_state = 0;
+    while (SDL_PollEvent(&event)) { }
+    host_key_state = KEY_RIGHT;
+    int fresh_right = 0;
+    while (SDL_PollEvent(&event))
+        if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_RIGHT) ++fresh_right;
+    if (fresh_right != 1) { puts("FAIL: navigation after reading gesture"); return 1; }
+    host_key_state = 0;
+    while (SDL_PollEvent(&event)) { }
+
+    for (int i = 0; i < 256 * 192; ++i) DsiMapBuffer()[i] = (unsigned char)(i * 7);
+    DsiSetTopView(DSI_TOP_MAP);
+    SDL_Flip(screen);
+    for (int y = 0; y < 192; ++y)
+        for (int x = 0; x < 256; ++x) {
+            unsigned char top = (unsigned char)(host_sub_vram[y * 128 + x / 2] >> (8 * (x % 2)));
+            unsigned char bottom = (unsigned char)(host_vram[y * 128 + x / 2] >> (8 * (x % 2)));
+            if (top != (unsigned char)((y * 256 + x) * 7)
+                || bottom != (unsigned char)(x * 640 / 256 + 3 * (y * 480 / 192))) {
+                printf("FAIL: independent buffers at %d,%d top=%u expected=%u bottom=%u expected=%u\n", x, y,
+                    top, (unsigned char)((y * 256 + x) * 7), bottom,
+                    (unsigned char)(x * 640 / 256 + 3 * (y * 480 / 192))); return 1;
+            }
+        }
+    /* The shoulder chord is reserved only in menus; gameplay keeps both keys. */
+    host_key_state = KEY_L | KEY_R;
+    int shoulders = 0;
+    while (SDL_PollEvent(&event))
+        if (event.type == SDL_KEYDOWN && (event.key.keysym.sym == SDLK_F5 || event.key.keysym.sym == SDLK_F6)) ++shoulders;
+    if (shoulders != 2) { puts("FAIL: gameplay shoulders intercepted"); return 1; }
+    host_key_state = 0;
+    while (SDL_PollEvent(&event)) { }
+    DsiSetTopView(DSI_TOP_DIAGNOSTICS);
+    if (!(host_visible_backgrounds & (1u << 4)) || (host_visible_backgrounds & (1u << 7))) {
+        puts("FAIL: diagnostics visibility restoration"); return 1;
+    }
+    for (int i = 0; i < 256; ++i)
+        if (host_sub_palette[i] != (uint16_t)(0x7000 + i)) { puts("FAIL: console palette restoration"); return 1; }
+    /* One-pixel padded source and invalid inputs must be safe. */
+    uint8_t tiny[] = { 41, 99, 99, 99 };
+    if (!dsi_present_reading_index8(tiny, 1, 1, 4, -2147483647, 2147483647, host_sub_vram, 128)) return 1;
+    for (int i = 0; i < 192 * 128; ++i)
+        if (host_sub_vram[i] != 0x2929) { puts("FAIL: small reading source"); return 1; }
+    if (dsi_present_reading_index8(NULL, 1, 1, 1, 0, 0, host_sub_vram, 128)
+        || dsi_present_reading_index8(tiny, 2, 1, 1, 0, 0, host_sub_vram, 128)
+        || dsi_present_reading_index8(tiny, 1, 1, 4, 0, 0, host_sub_vram, 127)) {
+        puts("FAIL: invalid reading arguments accepted"); return 1;
+    }
     SDL_FreeSurface(image);
     SDL_Quit();
-    puts("PASS: event queue, bottom LCD, 12 button press/release pairs, no modifiers, aligned touch, 256 colors, 49152 pixels");
+    puts("PASS: R3 input/palette/pixels; R4 native menu crop, manual pan, input isolation, independent map, console restoration, tiny/invalid sources");
     return 0;
 }

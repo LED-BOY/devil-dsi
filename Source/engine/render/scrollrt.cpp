@@ -4,6 +4,9 @@
  * Implementation of functionality for rendering the dungeons, monsters and calling other render routines.
  */
 #include "engine/render/scrollrt.h"
+#ifdef __DSI__
+#include "platform/dsi/dsi_video.h"
+#endif
 
 #include <cmath>
 #include <cstddef>
@@ -1837,6 +1840,20 @@ void DrawAndBlit()
 		return;
 	}
 
+#ifdef __DSI__
+	const bool readingMenu = gmenu_is_active() || invflag || SpellbookFlag
+	    || CharFlag || QuestLogIsOpen || IsStashOpen || IsVisualStoreOpen
+	    || IsPlayerInStore() || qtextflag || SpellSelectFlag || DropGoldFlag
+	    || IsWithdrawGoldOpen || HelpFlag || ChatLogFlag || PauseMode != 0;
+	if (readingMenu) {
+		DsiSetTopView(DSI_TOP_MENU);
+		const int focusX = (invflag || SpellbookFlag) ? gnScreenWidth - 160
+		    : (CharFlag || QuestLogIsOpen || IsStashOpen || IsVisualStoreOpen) ? 160
+		                                                                 : gnScreenWidth / 2;
+		DsiSetReadingFocus(focusX, gnViewportHeight / 2);
+	}
+#endif
+
 	int hgt = 0;
 	bool drawHealth = IsRedrawComponent(PanelDrawComponent::Health);
 	bool drawMana = IsRedrawComponent(PanelDrawComponent::Mana);
@@ -1922,6 +1939,16 @@ void DrawAndBlit()
 		}
 	}
 
+#ifdef __DSI__
+	if (!readingMenu) {
+		static SDLSurfaceUniquePtr mapSurface { SDL_CreateRGBSurfaceFrom(
+		    DsiMapBuffer(), DSI_WIDTH, DSI_HEIGHT, 8, DSI_WIDTH, 0, 0, 0, 0) };
+		if (!mapSurface) ErrSdl();
+		SDL_FillRect(mapSurface.get(), nullptr, 0);
+		DrawDsiAutomap(Surface(mapSurface.get()));
+		DsiSetTopView(DSI_TOP_MAP);
+	}
+#endif
 	RenderPresent();
 }
 

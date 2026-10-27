@@ -11,6 +11,41 @@
 
 struct SDL_PrivateVideoData { void *pixels; int bg; };
 static u64 start_ticks;
+static enum DsiTopView top_view;
+static int top_bg = -1;
+static uint16_t console_palette[256], game_palette[256];
+static uint8_t map_pixels[DSI_WIDTH * DSI_HEIGHT];
+static int reading_x = 320, reading_y = 240, focus_x = -1, focus_y = -1;
+static int manual_reading;
+static Uint32 next_pan;
+
+uint8_t *DsiMapBuffer(void) { return map_pixels; }
+
+void DsiSetTopView(enum DsiTopView view)
+{
+    if (top_view == view) return;
+    top_view = view;
+    focus_x = focus_y = -1;
+    manual_reading = 0;
+    if (view == DSI_TOP_MENU) { reading_x = 320; reading_y = 240; }
+    if (top_bg < 0) return;
+    if (view == DSI_TOP_DIAGNOSTICS) {
+        bgHide(top_bg);
+        for (int i = 0; i < 256; ++i) BG_PALETTE_SUB[i] = console_palette[i];
+        bgShow(4); /* consoleDemoInit's sub BG0 */
+    } else {
+        bgHide(4);
+        for (int i = 0; i < 256; ++i) BG_PALETTE_SUB[i] = game_palette[i];
+        bgShow(top_bg);
+    }
+}
+
+void DsiSetReadingFocus(int x, int y)
+{
+    if (x == focus_x && y == focus_y) return;
+    focus_x = x; focus_y = y;
+    if (!manual_reading) { reading_x = x; reading_y = y; }
+}
 
 void SDL_StartTicks(void) { start_ticks = tickGetCount(); }
 Uint32 SDL_GetTicks(void) { return (Uint32)((tickGetCount() - start_ticks) * 1000 / TICK_FREQ); }
@@ -38,6 +73,14 @@ static int video_init(SDL_VideoDevice *_this, SDL_PixelFormat *format)
     _this->hidden->bg = bgInit(3, BgType_Bmp8, BgSize_B8_256x256, 0, 0);
     /* Main-engine graphics on the touch LCD; the sub-engine console moves up. */
     lcdMainOnBottom();
+    /* Keep console tiles/map in the first 64 KiB of VRAM C. The 8-bit top
+     * bitmap uses the other 64 KiB (mapBase 4 = 4 * 16 KiB), without overlap. */
+    for (int i = 0; i < 256; ++i) console_palette[i] = BG_PALETTE_SUB[i];
+    videoSetModeSub(MODE_5_2D);
+    top_bg = bgInitSub(3, BgType_Bmp8, BgSize_B8_256x256, 4, 0);
+    bgHide(top_bg);
+    bgShow(4);
+    top_view = DSI_TOP_DIAGNOSTICS;
     format->BitsPerPixel = 8;
     format->BytesPerPixel = 1;
     return 0;
@@ -69,13 +112,22 @@ static void update(SDL_VideoDevice *_this, int count, SDL_Rect *rects)
     if (!surface || !surface->pixels) return;
     dsi_present_index8(surface->pixels, surface->w, surface->h, surface->pitch,
         bgGetGfxPtr(_this->hidden->bg), 128);
+    if (top_view == DSI_TOP_MENU)
+        dsi_present_reading_index8(surface->pixels, surface->w, surface->h,
+            surface->pitch, reading_x, reading_y, bgGetGfxPtr(top_bg), 128);
+    else if (top_view == DSI_TOP_MAP)
+        dsi_present_index8(map_pixels, DSI_WIDTH, DSI_HEIGHT, DSI_WIDTH,
+            bgGetGfxPtr(top_bg), 128);
 }
 static int set_colors(SDL_VideoDevice *_this, int first, int count, SDL_Color *colors)
 {
     if (!colors || first < 0 || count < 0 || first > 256 || count > 256 - first)
         return 0;
-    for (int i = 0; i < count && first + i < 256; ++i)
-        BG_PALETTE[first + i] = dsi_palette_color(colors[i].r, colors[i].g, colors[i].b);
+    for (int i = 0; i < count && first + i < 256; ++i) {
+        uint16_t color = dsi_palette_color(colors[i].r, colors[i].g, colors[i].b);
+        game_palette[first + i] = BG_PALETTE[first + i] = color;
+        if (top_view != DSI_TOP_DIAGNOSTICS) BG_PALETTE_SUB[first + i] = color;
+    }
     static unsigned updates;
     if (count && updates++ < 4)
         DsiTrace("palette %d+%d RGB=%u,%u,%u hw=%04x", first, count,
@@ -84,6 +136,7 @@ static int set_colors(SDL_VideoDevice *_this, int first, int count, SDL_Color *c
 }
 static void video_quit(SDL_VideoDevice *_this)
 {
+    DsiSetTopView(DSI_TOP_DIAGNOSTICS);
     SDL_free(_this->hidden->pixels); _this->hidden->pixels = NULL;
     if (_this->screen) _this->screen->pixels = NULL;
 }
@@ -101,8 +154,38 @@ static void pump_events(SDL_VideoDevice *_this)
     static int touched;
     static int mouse_x, mouse_y;
     static unsigned logged_buttons;
+    static u32 delivered_keys, blocked_keys;
     scanKeys();
-    u32 down = keysDown(), up = keysUp();
+    u32 held = keysHeld();
+    const int reading_control = top_view == DSI_TOP_MENU
+        && (held & (KEY_L | KEY_R)) == (KEY_L | KEY_R);
+    blocked_keys &= held;
+    if (reading_control) {
+        manual_reading = 1;
+        blocked_keys |= held;
+        if ((Sint32)(SDL_GetTicks() - next_pan) >= 0) {
+            if (held & KEY_LEFT) reading_x -= 12;
+            if (held & KEY_RIGHT) reading_x += 12;
+            if (held & KEY_UP) reading_y -= 12;
+            if (held & KEY_DOWN) reading_y += 12;
+            next_pan = SDL_GetTicks() + 40;
+        }
+        if (_this->screen && (held & KEY_TOUCH)) {
+            touchPosition touch; touchRead(&touch);
+            reading_x = dsi_source_coordinate(touch.px, DSI_WIDTH, _this->screen->w);
+            reading_y = dsi_source_coordinate(touch.py, DSI_HEIGHT, _this->screen->h);
+        }
+    }
+    if (_this->screen) {
+        if (reading_x < 0) reading_x = 0;
+        if (reading_x > _this->screen->w) reading_x = _this->screen->w;
+        if (reading_y < 0) reading_y = 0;
+        if (reading_y > _this->screen->h) reading_y = _this->screen->h;
+    }
+    u32 effective_keys = held & ~blocked_keys;
+    u32 down = effective_keys & ~delivered_keys, up = delivered_keys & ~effective_keys;
+    delivered_keys = effective_keys;
+    if (down & 0xfff) { manual_reading = 0; focus_x = focus_y = -1; }
     for (int i = 0; i < 12; ++i) {
         SDL_keysym sym = { .scancode = i, .sym = keys[i], .mod = KMOD_NONE, .unicode = 0 };
         if (down & (1u << i)) {
@@ -114,7 +197,7 @@ static void pump_events(SDL_VideoDevice *_this)
             if (logged_buttons++ < 24) DsiTrace("button bit=%d up key=%d posted=%d", i, sym.sym, posted);
         }
     }
-    if (_this->screen && (keysHeld() & KEY_TOUCH)) {
+    if (_this->screen && (effective_keys & KEY_TOUCH)) {
         touchPosition touch; touchRead(&touch);
         mouse_x = dsi_source_coordinate(touch.px, 256, _this->screen->w);
         mouse_y = dsi_source_coordinate(touch.py, 192, _this->screen->h);

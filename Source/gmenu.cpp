@@ -4,6 +4,9 @@
  * Implementation of the in-game navigation and interaction.
  */
 #include "gmenu.h"
+#ifdef __DSI__
+#include "platform/dsi/dsi_video.h"
+#endif
 
 #include <algorithm>
 #include <cstdint>
@@ -145,6 +148,9 @@ void GmenuDrawMenuItem(const Surface &out, TMenuItem *pItem, int y)
 	DrawString(out, _(pItem->pszStr), Point { x, y },
 	    { .flags = style | UiFlags::FontSize46, .spacing = 2 });
 	if (pItem == sgpCurrItem) {
+#ifdef __DSI__
+		DsiSetReadingFocus(gnScreenWidth / 2, y + 23);
+#endif
 		const ClxSprite sprite = (*PentSpin_cel)[PentSpn2Spin()];
 		ClxDraw(out, { x - 54, y + 51 }, sprite);
 		ClxDraw(out, { x + 4 + w, y + 51 }, sprite);

@@ -8,6 +8,7 @@
 #ifdef __DSI__
 #include <nds.h>
 #include <cstdio>
+#include "platform/dsi/dsi_video.h"
 #endif
 
 #ifdef USE_SDL3
@@ -67,6 +68,7 @@ void DisplayFatalErrorAndExit(std::string_view title, std::string_view body)
 {
 	FreeDlg();
 #ifdef __DSI__
+	DsiSetTopView(DSI_TOP_DIAGNOSTICS);
 	printf("\nENGINE ERROR\n%.*s\n%.*s\n", static_cast<int>(title.size()), title.data(), static_cast<int>(body.size()), body.data());
 	if (FILE *log = fopen("sd:/devilutionx/dsi-error.txt", "w")) {
 		fprintf(log, "%.*s\n%.*s\n", static_cast<int>(title.size()), title.data(), static_cast<int>(body.size()), body.data());

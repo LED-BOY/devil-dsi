@@ -34,6 +34,17 @@ namespace devilution {
 
 namespace {
 Point Automap;
+#ifdef __DSI__
+bool DsiDedicatedMap;
+#endif
+
+bool MapPanelsCoverView()
+{
+#ifdef __DSI__
+	if (DsiDedicatedMap) return false;
+#endif
+	return CanPanelsCoverView();
+}
 
 enum MapColors : uint8_t {
 	/** color used to draw the player's arrow */
@@ -1254,6 +1265,10 @@ void DrawAutomapTile(const Surface &out, Point center, Point map)
 
 Displacement GetAutomapScreen()
 {
+#ifdef __DSI__
+	if (DsiDedicatedMap)
+		return Displacement { 128, 96 } + AmOffset(AmWidthOffset::None, AmHeightOffset::HalfTileDown);
+#endif
 	Displacement screen = {};
 
 	if (GetAutomapType() == AutomapType::Minimap) {
@@ -1307,7 +1322,7 @@ void SearchAutomapItem(const Surface &out, const Displacement &myPlayerOffset, i
 
 			screen += GetAutomapScreen();
 
-			if (mapType != AutomapType::Minimap && CanPanelsCoverView()) {
+			if (mapType != AutomapType::Minimap && MapPanelsCoverView()) {
 				if (IsRightPanelOpen())
 					screen.x -= gnScreenWidth / 4;
 				if (IsLeftPanelOpen())
@@ -1360,7 +1375,7 @@ void DrawAutomapPlr(const Surface &out, const Displacement &myPlayerOffset, cons
 
 	base += GetAutomapScreen();
 
-	if (CanPanelsCoverView()) {
+	if (MapPanelsCoverView()) {
 		if (IsRightPanelOpen())
 			base.x -= gnScreenWidth / 4;
 		if (IsLeftPanelOpen())
@@ -1774,10 +1789,14 @@ void DrawAutomap(const Surface &out)
 
 	const int scale = (GetAutomapType() == AutomapType::Minimap) ? MinimapScale : AutoMapScale;
 	const int d = (scale * 64) / 100;
-	int cells = (2 * (gnScreenWidth / 2 / d)) + 1;
-	if (((gnScreenWidth / 2) % d) != 0)
+	int mapWidth = gnScreenWidth;
+#ifdef __DSI__
+	if (DsiDedicatedMap) mapWidth = out.w();
+#endif
+	int cells = (2 * (mapWidth / 2 / d)) + 1;
+	if (((mapWidth / 2) % d) != 0)
 		cells++;
-	if (((gnScreenWidth / 2) % d) >= (scale * 32) / 100)
+	if (((mapWidth / 2) % d) >= (scale * 32) / 100)
 		cells++;
 	if ((myPlayerOffset.deltaX + myPlayerOffset.deltaY) != 0)
 		cells++;
@@ -1830,7 +1849,7 @@ void DrawAutomap(const Surface &out)
 	screen.x += scale * myPlayerOffset.deltaX / 100 / 2;
 	screen.y += scale * myPlayerOffset.deltaY / 100 / 2;
 
-	if (CanPanelsCoverView()) {
+	if (MapPanelsCoverView()) {
 		if (IsRightPanelOpen()) {
 			screen.x -= gnScreenWidth / 4;
 		}
@@ -1873,6 +1892,24 @@ void DrawAutomap(const Surface &out)
 
 	DrawAutomapText(out);
 }
+
+#ifdef __DSI__
+void DrawDsiAutomap(const Surface &out)
+{
+	const auto savedType = CurrentAutomapType;
+	const auto savedOffset = AutomapOffset;
+	const int savedScale = AutoMapScale;
+	CurrentAutomapType = AutomapType::Opaque;
+	AutomapOffset = {};
+	AutoMapScale = 50;
+	DsiDedicatedMap = true;
+	DrawAutomap(out);
+	DsiDedicatedMap = false;
+	AutoMapScale = savedScale;
+	AutomapOffset = savedOffset;
+	CurrentAutomapType = savedType;
+}
+#endif
 
 void UpdateAutomapExplorer(Point map, MapExplorationType explorer)
 {

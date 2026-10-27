@@ -1,6 +1,37 @@
 # Experimental Nintendo DSi engine integration
 
-## R3 update
+## R4: menu reader and gameplay map
+
+- The complete 640x480 game stays on the 256x192 bottom display.
+- Menus use a native 256x192 crop on top: one source pixel per LCD pixel,
+  approximately 2.5 times the text size of the bottom overview. Main-menu
+  selectors and the in-game pause/options selection guide the crop automatically.
+- Inventory, character, spell, quest, stash, shop, help, dialogue, and pause
+  panels also activate the reader. Long text may require panning.
+- In a menu, hold **L+R** and use the **D-pad** to pan, or touch/drag the
+  bottom overview to center the reader. Reading gestures do not send clicks
+  or navigation keys to the engine. Release the gesture keys before navigating.
+- Ordinary gameplay shows a separate native 256x192 automap on top, centered
+  on the player at 50% map scale. It uses the engine's map shapes, exploration,
+  player arrows, and level information. It does not require the bottom overlay
+  to be enabled, change its settings, or reveal unexplored dungeon areas.
+- Menus replace the top map temporarily; closing them returns to the map.
+  Startup diagnostics remain logged. Handled fatal errors restore the console.
+- The top bitmap uses the upper 64 KiB of VRAM C; console tiles/map remain
+  in its lower half. Palette switching restores the console palette on errors.
+  The separate map buffer adds 48 KiB of static ARM9 RAM.
+
+The user reports R3 works on hardware. The supplied R3 trace reached town,
+finished level loading, and entered the game loop, with heap_used=7,297,056
+bytes at game-loop entry (allocator arena statistics, not total RAM use).
+R4 is cross-built and host-tested but has not yet been tested on a DSi.
+Its host test covers the actual SDL core, both output buffers, native reading
+pixels and edge bounds, consumed reading controls, normal gameplay shoulders,
+palette switching, console restoration, and the previous R3 regressions.
+The actual map contents, scene transitions, frame rate, and top LCD VRAM setup
+still require hardware testing.
+
+## R3 update (historical)
 
 The R2 hardware report said only the D-pad worked. The supplied startup log
 never reached `StartGame`; its last heap-used checkpoint was 2,584,688 bytes,
@@ -99,16 +130,12 @@ The complete engine cross-compiled, linked, and packaged with devkitARM GCC
 portable display-coordinate tests passed earlier. The earlier standalone probe
 was shown running in DSi mode with SD access and touch on the user's hardware.
 
-**This engine build has not yet been run on a DSi or emulator.** The probe's
-hardware result does not validate the engine. Main menu, character creation,
-town loading, frame rate, peak heap use, gameplay, save/reload, and repeated
-level changes still require testing. Default nearest-neighbour scaling makes
-text small, display updates may tear, and UI/control usability needs work.
-
-First test: launch in DSi mode, confirm the engine reaches its main menu, create
-a single-player Warrior, and attempt town loading. Photograph both screens if
-it stops, and preserve `dsi-error.txt` if one is created. Back up any existing
-saves before using an experimental engine build.
+R3 has now reached the game loop on the user's hardware and is reported to
+work. R4's map and menu reader need hardware verification: launch, check menu
+selection/panning, enter town, walk to confirm the top map follows, open and
+close inventory/pause menus, and enter a dungeon to check exploration. Preserve
+`dsi-startup.txt` if a problem occurs. Save/reload and longer sessions still
+need testing.
 
 See the root `LICENSE.md` and dependency license files. SDL 1.2.15 is LGPL-2.1
 or later; its complete source is included. No Diablo MPQ data is distributed.

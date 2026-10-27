@@ -1,4 +1,7 @@
 #include "DiabloUI/diabloui.h"
+#ifdef __DSI__
+#include "platform/dsi/dsi_video.h"
+#endif
 
 #include <algorithm>
 #include <array>
@@ -797,6 +800,9 @@ void UiAddLogo(std::vector<std::unique_ptr<UiItemBase>> *vecDialog, int y)
 void UiFadeIn()
 {
 	if (HeadlessMode) return;
+#ifdef __DSI__
+	DsiSetTopView(DSI_TOP_MENU);
+#endif
 	UiUpdateFadePalette();
 	if (DiabloUiSurface() == PalSurface) {
 		BltFast(nullptr, nullptr);
@@ -821,6 +827,10 @@ ClxSpriteList GetListSelectorSprites(int itemHeight)
 
 void DrawSelector(const SDL_Rect &rect)
 {
+#ifdef __DSI__
+	DsiSetTopView(DSI_TOP_MENU);
+	DsiSetReadingFocus(rect.x + rect.w / 2, rect.y + rect.h / 2);
+#endif
 	const ClxSpriteList sprites = GetListSelectorSprites(rect.h);
 	const ClxSprite sprite = sprites[GetAnimationFrame(sprites.numSprites())];
 

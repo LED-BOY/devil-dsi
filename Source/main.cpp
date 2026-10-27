@@ -63,7 +63,7 @@ extern "C" int main(int argc, char **argv)
 	consoleDebugInit(DebugDevice_CONSOLE);
 	defaultExceptionHandler();
 	setvbuf(stdout, nullptr, _IONBF, 0);
-	printf("DevilutionX DSi engine R3\nBottom screen + button fix\n");
+	printf("DevilutionX DSi engine R4\nMenu reader + top-screen map\n");
 	if (!isDSiMode() || !fatInitDefault()) {
 		printf("DSi mode and SD access required.\nSTART: exit\n");
 		while (pmMainLoop()) { swiWaitForVBlank(); scanKeys(); if (keysDown() & KEY_START) break; }

@@ -4,17 +4,18 @@ An experimental, unofficial Nintendo DSi port of [DevilutionX](https://github.co
 
 **This is a modified DevilutionX source tree.** Upstream engine code, assets, authorship, and license notices are retained. This project is not an official DevilutionX release.
 
-## Current status: R3
+## Current status: R4
 
 - Builds an actual DS/DSi `.nds` executable that calls the game engine.
-- Game graphics on the **bottom display**, diagnostics on top.
+- Full game on the **bottom display**; a native-resolution map on top during gameplay.
+- Menus and in-game panels switch the top screen to a native-pixel reading zoom. Hold **L+R** and use the D-pad to pan, or touch the bottom overview to center the reading view without clicking. Release gesture keys before navigating normally.
 - 640x480 indexed rendering downsampled to 256x192, with corrected SDL hardware-palette handling.
 - Nintendo button mappings and absolute touch-to-left-click input.
 - Fixed single-thread SDL event queue handling: previously the D-pad's held state worked while queued button, touch, and progress events were dropped.
 - Single-player target; sound and networking are disabled.
 - Persistent startup/loading trace at `sd:/devilutionx/dsi-startup.txt` and handled error output at `sd:/devilutionx/dsi-error.txt`.
 
-The standalone hardware probe ran on a DSi with SD and touch access. Earlier engine builds reached the menu. **R3 still needs hardware verification of the input fixes, town loading, gameplay, and save/reload.** Desktop tests exercise the real SDL core/driver with simulated hardware, including all 12 button press/release pairs, held states, touch, queued progress events, palette conversion, and every displayed pixel. They do not replace hardware testing.
+The user reports R3 working on a DSi; the supplied trace reached town and entered the game loop. **R4's menu zoom and top map still need hardware verification.** The actual SDL host tests pass input, palette, native reading pixels/bounds, reading-input isolation, separate display buffers, and console restoration checks. Actual map contents, VRAM configuration, transitions, and runtime performance remain hardware test items.
 
 ## Build on Windows
 
@@ -26,7 +27,7 @@ Install devkitPro's DS development tools, plus native Windows CMake and Ninja. T
 
 The first configuration fetches the pinned engine dependencies. SDL 1.2.15 source is included under `3rdParty/SDL12`. The expected output is `build-dsi/devilutionx-dsi.nds`, with generated `assets` and `mods` folders.
 
-See [DSI_PORT.md](DSI_PORT.md) for the implementation, diagnostics, revision history, and test instructions. [DSI_BUILD_INFO.json](DSI_BUILD_INFO.json) describes the tested local R3 cross-build; it is not a promise that a later build will have the same hash or memory footprint.
+See [DSI_PORT.md](DSI_PORT.md) for the implementation, diagnostics, revision history, and test instructions. [DSI_BUILD_INFO.json](DSI_BUILD_INFO.json) describes the tested local R4 cross-build; it is not a promise that a later build will have the same hash or memory footprint.
 
 ## Install on DSi
 

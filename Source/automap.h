@@ -181,6 +181,10 @@ void AutomapZoomOut();
  * @brief Renders the automap to the given buffer.
  */
 void DrawAutomap(const Surface &out);
+#ifdef __DSI__
+/** Native-size, player-centered map without changing the bottom overlay state. */
+void DrawDsiAutomap(const Surface &out);
+#endif
 
 /**
  * @brief Updates automap explorer at point if value is higher than existing.

@@ -41,3 +41,40 @@ uint16_t dsi_palette_color(uint8_t red, uint8_t green, uint8_t blue)
 {
     return (uint16_t)((red >> 3) | (green >> 3) << 5 | (blue >> 3) << 10);
 }
+
+int dsi_present_reading_index8(const uint8_t *source, int width, int height,
+    size_t source_pitch, int center_x, int center_y,
+    volatile uint16_t *destination, size_t destination_pitch)
+{
+    if (source == NULL || destination == NULL || width <= 0 || height <= 0
+        || source_pitch < (size_t)width || destination_pitch < DSI_WIDTH / 2)
+        return 0;
+    if ((size_t)(height - 1) > (SIZE_MAX - (size_t)(width - 1)) / source_pitch
+        || destination_pitch > (SIZE_MAX / sizeof(uint16_t) - DSI_WIDTH / 2)
+                / (DSI_HEIGHT - 1))
+        return 0;
+    /* Clamp centers before subtracting to avoid overflow for arbitrary inputs. */
+    if (center_x < 0) center_x = 0;
+    if (center_x > width) center_x = width;
+    if (center_y < 0) center_y = 0;
+    if (center_y > height) center_y = height;
+    int left = center_x - DSI_WIDTH / 2;
+    int top = center_y - DSI_HEIGHT / 2;
+    if (left > width - DSI_WIDTH) left = width - DSI_WIDTH;
+    if (top > height - DSI_HEIGHT) top = height - DSI_HEIGHT;
+    if (left < 0) left = 0;
+    if (top < 0) top = 0;
+    for (int y = 0; y < DSI_HEIGHT; ++y) {
+        int sy = top + y;
+        if (sy >= height) sy = height - 1;
+        const uint8_t *row = source + (size_t)sy * source_pitch;
+        for (int x = 0; x < DSI_WIDTH; x += 2) {
+            int sx0 = left + x, sx1 = sx0 + 1;
+            if (sx0 >= width) sx0 = width - 1;
+            if (sx1 >= width) sx1 = width - 1;
+            destination[(size_t)y * destination_pitch + x / 2]
+                = (uint16_t)(row[sx0] | (uint16_t)row[sx1] << 8);
+        }
+    }
+    return 1;
+}
