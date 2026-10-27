@@ -1,0 +1,46 @@
+{
+  "status": "R3 event-queue fix, button remapping and bottom display; R3 runtime untested",
+  "previous_hardware_report": "R2 D-pad worked but other buttons did not; trace never reached StartGame",
+  "input_regression_test": "Actual SDL core: 12 press/release pairs, held states, no modifiers, touch, user-event queue and bottom display passed",
+  "palette_regression_test": "R1 failure reproduced; R2 passed actual SDL core with simulated hardware",
+  "rom_bytes": 2146304,
+  "rom_sha256": "ad97b9e5d19988d45ba8c7e88c272fe4919a6c88ef3ac64b945e5da780444232",
+  "rom_unit_code": 2,
+  "header_crc16": "verified",
+  "rom_segments": {
+    "arm9": {
+      "offset": 16384,
+      "entry": "0x2004800",
+      "ram": "0x2004000",
+      "bytes": 2049496
+    },
+    "arm7": {
+      "offset": 2065920,
+      "entry": "0x2380000",
+      "ram": "0x2380000",
+      "bytes": 45940
+    },
+    "arm9i": {
+      "offset": 2115584,
+      "entry": "0x0",
+      "ram": "0x2400000",
+      "bytes": 12
+    },
+    "arm7i": {
+      "offset": 2116096,
+      "entry": "0x3807558",
+      "ram": "0x2e80000",
+      "bytes": 30004
+    }
+  },
+  "arm9_elf": {
+    "text": 2036104,
+    "data": 13404,
+    "bss": 647132,
+    "note": "Includes reserved 128 KiB engine stack; excludes dynamic heap and loaded game assets"
+  },
+  "hardware_tested": false,
+  "emulator_tested": false,
+  "sound": false,
+  "networking": false
+}
