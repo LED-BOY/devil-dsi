@@ -17,6 +17,10 @@ An experimental, unofficial Nintendo DSi port of [DevilutionX](https://github.co
 
 The user reports R3 working on a DSi; the supplied trace reached town and entered the game loop. **R5's settings and new controls still need hardware verification.** The actual SDL host tests pass input, palette, all three reading zooms/pixel bounds and configurable L-button input, reading-input isolation, separate display buffers, and console restoration checks. Actual map contents, VRAM configuration, transitions, and runtime performance remain hardware test items.
 
+## Next version
+
+See the [R6 DSi to-do list](DSI_TODO.md) for single-screen video playback, the reported L/right-click potion issue, and configurable R-button actions.
+
 ## Nintendo DSi options
 
 Open **Settings -> Nintendo DSi** from the main menu. The choices apply immediately and save through the normal settings flow to `sd:/devilutionx/diablo.ini`.
