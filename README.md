@@ -4,7 +4,7 @@ An experimental, unofficial Nintendo DSi port of [DevilutionX](https://github.co
 
 **This is a modified DevilutionX source tree.** Upstream engine code, assets, authorship, and license notices are retained. This project is not an official DevilutionX release.
 
-## Current status: R6 test4 (experimental)
+## Current status: R6 test5 (experimental)
 
 - Builds an actual DS/DSi `.nds` executable that calls the game engine.
 - Full game on the **bottom display**; a native-resolution map on top during gameplay.
@@ -19,7 +19,7 @@ The user reports R3 working on a DSi; the supplied trace reached town and entere
 
 ## Next version
 
-R6 test4 reduces top-map rendering/copying to 15 Hz by default, caches scaling tables and adds an optional native-size performance overlay. Test3 fixes the unsigned saved-message timeout after slow SD writes and defaults R to a dedicated belt healing-potion action. It retains test2 loading blackout, redraw cleanup and experimental hardware effects audio. Full cross-build and SDL host regressions pass; DSi testing remains pending. See [DSI_PORT.md](DSI_PORT.md) and the [hardware checklist](DSI_TODO.md).
+R6 test5 adds ARM/ITCM sprite pixel kernels, speed optimization for selected renderer files and aligned word VRAM copies, retaining the same game view and controls. R6 test4 reduces top-map rendering/copying to 15 Hz by default, caches scaling tables and adds an optional native-size performance overlay. Test3 fixes the unsigned saved-message timeout after slow SD writes and defaults R to a dedicated belt healing-potion action. It retains test2 loading blackout, redraw cleanup and experimental hardware effects audio. Full cross-build and SDL host regressions pass; DSi testing remains pending. See [DSI_PORT.md](DSI_PORT.md) and the [hardware checklist](DSI_TODO.md).
 
 ## Nintendo DSi options
 
@@ -38,6 +38,25 @@ Open **Settings -> Nintendo DSi** from the main menu. The choices apply immediat
 Map percentages refer to map scale: lower values show more area. The new default is wider than R4. Reading zoom is relative to the complete bottom overview. L right-click uses the current pointer; L+touch moves the pointer without also left-clicking. Press L+R together in menus for the reader gesture. A brief 120 ms menu-only delay lets the chord cancel a pending right-click; gameplay right-click is immediate.
 
 Experimental SFX use a 1 MiB bounded cache; long clips and MP3 replacements may be skipped. Music and movie audio are unavailable. For a silent fallback before boot, put `Sound Effects=0` under `[Nintendo DSi]` in `diablo.ini`.
+
+## Renderer optimization (R6 test5)
+
+This build routes palette-mapped sprite pixels and transparency blending through
+four unrolled ARM kernels in ITCM. The overview/menu presenters also run from
+ITCM, using aligned 32-bit VRAM stores with a halfword fallback for other row
+alignments. No byte writes or DMA are used for VRAM. Palette results and the
+640x480 layout remain the same. Sprite/tile/scene renderer files use `-O2`;
+other engine code retains size optimization.
+
+The final ELF places all six kernels in the standard Calico-loaded ITCM section,
+using 3640 of 32736 available bytes including library code. Compared with test4,
+text grows 7428 bytes and BSS 8 bytes; there is no new asset cache allocation.
+Host tests compare every blend color pair using an asymmetric palette table,
+lighting maps, odd/zero/tail lengths, alignments, guard regions and all displayed
+pixels. A linked-ARM check verifies section placement and both VRAM store widths.
+These checks establish correctness/placement, not a measured hardware speedup.
+The user reports test4 helped, with roughly 7.4-8 FPS in a slow scene; compare
+this build in the same scene with identical settings before estimating gains.
 
 ## Performance measurements (R6 test4)
 

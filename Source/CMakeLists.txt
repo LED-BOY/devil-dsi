@@ -2,6 +2,12 @@ include(Definitions)
 include(functions/devilutionx_library)
 include(functions/genex)
 
+if(NINTENDO_DSI)
+  # The scene/sprite/tile loops run every frame. Keep -Os for other engine code.
+  set_source_files_properties(engine/render/scrollrt.cpp engine/render/clx_render.cpp
+    engine/render/dun_render.cpp PROPERTIES COMPILE_OPTIONS "-O2")
+endif()
+
 set(libdevilutionx_SRCS
   appfat.cpp
   automap.cpp

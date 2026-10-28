@@ -1,4 +1,13 @@
 #include "dsi_video.h"
+#include "dsi_hot.h"
+
+/* Hardware VRAM permits aligned word stores as well as halfwords. may_alias
+ * lets the host pixel tests back either access width with the same allocation. */
+#if defined(__GNUC__)
+typedef uint32_t WordPixels __attribute__((may_alias));
+#else
+typedef uint32_t WordPixels;
+#endif
 
 /* Separate overview/reader caches: alternating screens must not evict each
  * other's table. The engine calls these presenters on its single thread. */
@@ -31,7 +40,7 @@ int dsi_source_coordinate(int coordinate, int screen_extent, int source_extent)
         / (unsigned)screen_extent);
 }
 
-int dsi_present_index8(const uint8_t *source, int width, int height,
+DSI_HOT int dsi_present_index8(const uint8_t *source, int width, int height,
     size_t source_pitch, volatile uint16_t *destination, size_t destination_pitch)
 {
     int x, y;
@@ -49,6 +58,13 @@ int dsi_present_index8(const uint8_t *source, int width, int height,
         for (y = 0; y < DSI_HEIGHT; ++y) {
             const uint8_t *row = source + (size_t)y * source_pitch;
             volatile uint16_t *output = destination + (size_t)y * destination_pitch;
+            if (((uintptr_t)output & 3) == 0) {
+                volatile WordPixels *words = (volatile WordPixels *)output;
+                for (x = 0; x < DSI_WIDTH; x += 4)
+                    words[x / 4] = (uint32_t)row[x] | (uint32_t)row[x + 1] << 8
+                        | (uint32_t)row[x + 2] << 16 | (uint32_t)row[x + 3] << 24;
+                continue;
+            }
             for (x = 0; x < DSI_WIDTH; x += 2)
                 output[x / 2] = (uint16_t)(row[x] | (uint16_t)row[x + 1] << 8);
         }
@@ -59,6 +75,15 @@ int dsi_present_index8(const uint8_t *source, int width, int height,
         const uint8_t *row = source
             + (size_t)overview_table.y[y] * source_pitch;
         volatile uint16_t *output = destination + (size_t)y * destination_pitch;
+        if (((uintptr_t)output & 3) == 0) {
+            volatile WordPixels *words = (volatile WordPixels *)output;
+            for (x = 0; x < DSI_WIDTH; x += 4)
+                words[x / 4] = (uint32_t)row[overview_table.x[x]]
+                    | (uint32_t)row[overview_table.x[x + 1]] << 8
+                    | (uint32_t)row[overview_table.x[x + 2]] << 16
+                    | (uint32_t)row[overview_table.x[x + 3]] << 24;
+            continue;
+        }
         for (x = 0; x < DSI_WIDTH; x += 2)
             output[x / 2] = (uint16_t)(row[overview_table.x[x]] | (uint16_t)row[overview_table.x[x + 1]] << 8);
     }
@@ -70,7 +95,7 @@ uint16_t dsi_palette_color(uint8_t red, uint8_t green, uint8_t blue)
     return (uint16_t)((red >> 3) | (green >> 3) << 5 | (blue >> 3) << 10);
 }
 
-int dsi_present_reading_index8(const uint8_t *source, int width, int height,
+DSI_HOT int dsi_present_reading_index8(const uint8_t *source, int width, int height,
     size_t source_pitch, int center_x, int center_y, int zoom_percent,
     volatile uint16_t *destination, size_t destination_pitch)
 {
@@ -102,6 +127,16 @@ int dsi_present_reading_index8(const uint8_t *source, int width, int height,
     for (int y = 0; y < DSI_HEIGHT; ++y) {
         int sy = top + (int)reading_table.y[y];
         const uint8_t *row = source + (size_t)sy * source_pitch + left;
+        volatile uint16_t *output = destination + (size_t)y * destination_pitch;
+        if (((uintptr_t)output & 3) == 0) {
+            volatile WordPixels *words = (volatile WordPixels *)output;
+            for (int x = 0; x < DSI_WIDTH; x += 4)
+                words[x / 4] = (uint32_t)row[reading_table.x[x]]
+                    | (uint32_t)row[reading_table.x[x + 1]] << 8
+                    | (uint32_t)row[reading_table.x[x + 2]] << 16
+                    | (uint32_t)row[reading_table.x[x + 3]] << 24;
+            continue;
+        }
         for (int x = 0; x < DSI_WIDTH; x += 2) {
             unsigned sx0 = reading_table.x[x], sx1 = reading_table.x[x + 1];
             destination[(size_t)y * destination_pitch + x / 2]

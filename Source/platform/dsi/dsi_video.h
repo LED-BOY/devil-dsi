@@ -39,7 +39,8 @@ void DsiPerfGetStats(struct DsiPerfStats *stats);
 int dsi_source_coordinate(int screen_coordinate, int screen_extent, int source_extent);
 
 /* Destination pitch is measured in 16-bit words. The source remains in RAM.
- * Paired stores are deliberate: DS background VRAM does not support byte writes.
+ * Halfword/word stores are deliberate: DS background VRAM has no byte writes.
+ * Word stores require aligned rows; other rows use the halfword fallback.
  * Returns zero for invalid arguments, without touching the destination. */
 int dsi_present_index8(const uint8_t *source, int width, int height,
     size_t source_pitch, volatile uint16_t *destination, size_t destination_pitch);

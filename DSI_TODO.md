@@ -47,3 +47,15 @@ R6 test4 performance checks (hardware pending):
 - [ ] Use measured stage costs to choose the next optimization: renderer hot
   code/ITCM, a separately tested lower-resolution layout, or SD asset caching.
   Do not claim speed gains from host tests or allocate Wi-Fi RAM as game RAM.
+
+
+R6 test5 hardware checks (pending):
+
+- [ ] Compare with test4 in the same slow scene/settings; record FPS and
+  Draw/Map/Copy B/T. The reported baseline is about 7.4-8 FPS.
+- [ ] Inspect dungeon lighting, translucent walls, sprites, spell effects,
+  menus/reader zoom, map and movies for identical colors and no new artifacts.
+- [ ] Confirm entry/level changes/save/reload and long play remain stable with
+  the ITCM kernels. Keep the test4 executable as the fallback.
+- [ ] Use stage timings before selecting further resolution, renderer or SD
+  caching work; no hardware FPS gain is inferred from host/linker tests.

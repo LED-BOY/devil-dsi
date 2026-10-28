@@ -10,6 +10,7 @@
 #include "audio_test.h"
 #include "potion_test.h"
 #include "performance_test.h"
+#include "render_kernel_test.h"
 
 volatile uint16_t host_palette[256], host_vram[32768];
 volatile uint16_t host_sub_palette[256], host_sub_vram[32768];
@@ -202,6 +203,7 @@ int main(void)
         puts("FAIL: invalid reading arguments accepted"); return 1;
     }
     if (!CheckScaleCache()) { puts("FAIL: scale cache"); return 1; }
+    if (!CheckRenderKernels() || !CheckPackedStores()) { puts("FAIL: render kernel/word store regression"); return 1; }
     if (!CheckPerformance(screen)) { puts("FAIL: performance regression"); return 1; }
     if (!CheckR5Settings(screen)) return 1;
     if (!CheckR6(screen)) { puts("FAIL: R6 regression"); return 1; }

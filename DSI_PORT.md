@@ -1,6 +1,28 @@
 # Experimental Nintendo DSi engine integration
 
 
+## R6 test5: renderer kernels and fast instruction memory
+
+`dsi_render.c` provides byte-exact palette-map, blend, mapped-blend and blended
+fill kernels, unrolled four pixels at a time. `blit_impl.hpp` routes DSi calls
+to them while retaining upstream paths on other platforms. Table argument order
+is preserved, including destination-first mapped blends. Kernels accept arbitrary
+byte alignment, zero/odd lengths and do not read/write outside the requested run.
+
+These four kernels and both presenters compile as ARM with -O2 and reside in
+Calico's standard `.itcm` section. Loader/linker initialization is unchanged.
+The selected sprite/tile/scene C++ translation units use -O2; other engine code
+retains -Os. Word-aligned destination rows use 32-bit stores, reducing VRAM
+store count from 24576 to 12288 per full screen. Other rows use halfwords;
+source reads remain byte-safe. No DMA, memory-controller remapping or new cache.
+
+The linked ELF uses 3640/32736 ITCM bytes including library routines; text is
+2174208 bytes (+7428 from test4) and BSS 710764 (+8). Host pixel tests and the
+linked ARM/section checks pass. The internal resolution, touch transform, view,
+reader/map settings, game rules, SFX cache and shoulder controls are unchanged.
+Actual FPS gains require DSi measurement; the reported test4 baseline is about
+7.4-8 FPS, without a stage timing breakdown yet.
+
 ## R6 test4: map pacing, display copies and measurements
 
 The top map renders/copies at 15 Hz by default, with 10 Hz and Every Frame
