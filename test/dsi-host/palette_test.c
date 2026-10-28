@@ -8,6 +8,7 @@
 #include "r5_settings_test.h"
 #include "r6_test.h"
 #include "audio_test.h"
+#include "potion_test.h"
 
 volatile uint16_t host_palette[256], host_vram[32768];
 volatile uint16_t host_sub_palette[256], host_sub_vram[32768];
@@ -201,6 +202,7 @@ int main(void)
     }
     if (!CheckR5Settings(screen)) return 1;
     if (!CheckR6(screen)) { puts("FAIL: R6 regression"); return 1; }
+    if (!CheckPotionAction()) { puts("FAIL: potion input regression"); return 1; }
     if (!CheckAudio()) { puts("FAIL: audio regression"); return 1; }
     DsiSetTopView(DSI_TOP_MENU);
     DsiSetLoading(1);

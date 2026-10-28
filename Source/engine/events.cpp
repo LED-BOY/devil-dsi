@@ -1,4 +1,7 @@
 #include "engine/events.hpp"
+#ifdef __DSI__
+#include "platform/dsi/dsi_video.h"
+#endif
 
 #include <cstdint>
 
@@ -58,6 +61,13 @@ bool FetchMessage_Real(SDL_Event *event, uint16_t *modState)
 
 	SDL_Event e;
 	if (!PollEvent(&e)) return false;
+#ifdef __DSI__
+	if (e.type == DSI_EVENT_HEALTH_POTION) {
+		*event = e;
+		*modState = SDL_GetModState();
+		return true;
+	}
+#endif
 
 	event->type = static_cast<SDL_EventType>(0);
 	*modState = SDL_GetModState();

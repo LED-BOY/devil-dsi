@@ -11,7 +11,9 @@ extern "C" {
 #endif
 
 enum DsiTopView { DSI_TOP_DIAGNOSTICS, DSI_TOP_MENU, DSI_TOP_MAP, DSI_TOP_MOVIE };
-enum DsiLAction { DSI_L_CONTROLLER, DSI_L_RIGHT_MOUSE, DSI_L_DISABLED };
+enum DsiLAction { DSI_L_CONTROLLER, DSI_L_RIGHT_MOUSE, DSI_L_DISABLED, DSI_L_HEALTH_POTION };
+/* Separate SDL 1.2 user slot from the engine's loading/progress event (24). */
+enum { DSI_EVENT_HEALTH_POTION = 25 };
 void DsiConfigureOptions(int reading_percent, int map_scale, int l_action, int r_action);
 int DsiTopMapScale(void);
 void DsiSetTopView(enum DsiTopView view);

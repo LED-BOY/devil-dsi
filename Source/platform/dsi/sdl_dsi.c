@@ -19,7 +19,7 @@ static int reading_x = 320, reading_y = 240, focus_x = -1, focus_y = -1;
 static int manual_reading;
 static Uint32 next_pan;
 static int reading_percent = 200, map_scale = 35;
-static int shoulder_action[2] = { DSI_L_RIGHT_MOUSE, DSI_L_CONTROLLER };
+static int shoulder_action[2] = { DSI_L_RIGHT_MOUSE, DSI_L_HEALTH_POTION };
 static int movie_active;
 static enum DsiTopView movie_restore_view;
 static int loading_depth;
@@ -29,8 +29,17 @@ void DsiConfigureOptions(int zoom, int scale, int l_action, int r_action)
 {
     reading_percent = (zoom == 150 || zoom == 250) ? zoom : 200;
     map_scale = (scale == 25 || scale == 50) ? scale : 35;
-    shoulder_action[0] = (l_action >= DSI_L_CONTROLLER && l_action <= DSI_L_DISABLED) ? l_action : DSI_L_RIGHT_MOUSE;
-    shoulder_action[1] = (r_action >= DSI_L_CONTROLLER && r_action <= DSI_L_DISABLED) ? r_action : DSI_L_CONTROLLER;
+    shoulder_action[0] = (l_action >= DSI_L_CONTROLLER && l_action <= DSI_L_HEALTH_POTION) ? l_action : DSI_L_RIGHT_MOUSE;
+    shoulder_action[1] = (r_action >= DSI_L_CONTROLLER && r_action <= DSI_L_HEALTH_POTION) ? r_action : DSI_L_HEALTH_POTION;
+}
+
+static void post_health_potion(void)
+{
+    if (top_view != DSI_TOP_MENU && top_view != DSI_TOP_MAP) return;
+    SDL_Event event;
+    SDL_memset(&event, 0, sizeof(event));
+    event.type = DSI_EVENT_HEALTH_POTION;
+    SDL_PushEvent(&event);
 }
 
 int DsiTopMapScale(void) { return map_scale; }
@@ -288,18 +297,22 @@ static void pump_events(SDL_VideoDevice *_this)
     int was_down = mouse_down[0] || mouse_down[1], tap = 0;
     for (int i = 0; i < 2; ++i) {
         u32 bit = shoulder_bits[i];
-        if ((down & bit) && active_action[i] == DSI_L_RIGHT_MOUSE) {
+        if ((down & bit) && (active_action[i] == DSI_L_RIGHT_MOUSE || active_action[i] == DSI_L_HEALTH_POTION)) {
             pending[i] = 1;
             press_time[i] = SDL_GetTicks();
         }
         if (up & bit) {
-            if (pending[i] && !(blocked_keys & bit)) tap = 1;
+            if (pending[i] && !(blocked_keys & bit)) {
+                if (active_action[i] == DSI_L_RIGHT_MOUSE) tap = 1;
+                else if (active_action[i] == DSI_L_HEALTH_POTION) post_health_potion();
+            }
             pending[i] = mouse_down[i] = 0;
         }
         if (reading_control) pending[i] = 0;
         if (pending[i] && (effective_keys & bit)
             && (top_view != DSI_TOP_MENU || SDL_GetTicks() - press_time[i] >= 120)) {
-            mouse_down[i] = 1;
+            if (active_action[i] == DSI_L_RIGHT_MOUSE) mouse_down[i] = 1;
+            else if (active_action[i] == DSI_L_HEALTH_POTION) post_health_potion();
             pending[i] = 0;
         }
     }

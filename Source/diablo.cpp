@@ -8,6 +8,7 @@
 #include <string_view>
 #ifdef __DSI__
 #include "platform/dsi/dsi_trace.h"
+#include "platform/dsi/dsi_video.h"
 #endif
 
 #ifdef USE_SDL3
@@ -750,6 +751,13 @@ void PrepareForFadeIn()
 
 void GameEventHandler(const SDL_Event &event, uint16_t modState)
 {
+#ifdef __DSI__
+	if (event.type == DSI_EVENT_HEALTH_POTION) {
+		if (!MyPlayerIsDead && MyPlayer->_pmode != PM_DEATH && !InGameMenu() && sgnTimeoutCurs == CURSOR_NONE)
+			UseBeltItem(BeltItemType::Healing);
+		return;
+	}
+#endif
 	[[maybe_unused]] const Options &options = GetOptions();
 	StaticVector<ControllerButtonEvent, 4> ctrlEvents = ToControllerButtonEvents(event);
 	for (const ControllerButtonEvent ctrlEvent : ctrlEvents) {

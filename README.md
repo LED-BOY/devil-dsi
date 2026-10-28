@@ -4,7 +4,7 @@ An experimental, unofficial Nintendo DSi port of [DevilutionX](https://github.co
 
 **This is a modified DevilutionX source tree.** Upstream engine code, assets, authorship, and license notices are retained. This project is not an official DevilutionX release.
 
-## Current status: R6 test2 (experimental)
+## Current status: R6 test3 (experimental)
 
 - Builds an actual DS/DSi `.nds` executable that calls the game engine.
 - Full game on the **bottom display**; a native-resolution map on top during gameplay.
@@ -19,7 +19,7 @@ The user reports R3 working on a DSi; the supplied trace reached town and entere
 
 ## Next version
 
-R6 test2 adds saved-message redraw cleanup, a black top screen during loading, and experimental effects-only hardware audio on top of the R6 movie/shoulder changes. Full cross-build and SDL host regressions pass; DSi testing remains pending. See [DSI_PORT.md](DSI_PORT.md) and the [hardware checklist](DSI_TODO.md).
+R6 test3 fixes the unsigned saved-message timeout after slow SD writes and defaults R to a dedicated belt healing-potion action. It retains test2 loading blackout, redraw cleanup and experimental hardware effects audio. Full cross-build and SDL host regressions pass; DSi testing remains pending. See [DSI_PORT.md](DSI_PORT.md) and the [hardware checklist](DSI_TODO.md).
 
 ## Nintendo DSi options
 
@@ -29,8 +29,8 @@ Open **Settings -> Nintendo DSi** from the main menu. The choices apply immediat
 | --- | --- | --- |
 | Menu Reading Zoom | 1.5x, 2x, 2.5x | 2x |
 | Top Map Zoom | Far (25%), Wide (35%), Close (50%) | Wide (35%) |
-| L Button Action | Right Mouse Button, Controller Shoulder, Disabled | Right Mouse Button |
-| R Button Action | Right Mouse Button, Controller Shoulder, Disabled | Controller Shoulder |
+| L Button Action | Right Mouse Button, Use Health Potion, Controller Shoulder, Disabled | Right Mouse Button |
+| R Button Action | Use Health Potion, Right Mouse Button, Controller Shoulder, Disabled | Use Health Potion |
 | Sound Effects | On, Off | On (experimental) |
 
 Map percentages refer to map scale: lower values show more area. The new default is wider than R4. Reading zoom is relative to the complete bottom overview. L right-click uses the current pointer; L+touch moves the pointer without also left-clicking. Press L+R together in menus for the reader gesture. A brief 120 ms menu-only delay lets the chord cancel a pending right-click; gameplay right-click is immediate.
@@ -47,7 +47,7 @@ Install devkitPro's DS development tools, plus native Windows CMake and Ninja. T
 
 The first configuration fetches the pinned engine dependencies. SDL 1.2.15 source is included under `3rdParty/SDL12`. The expected output is `build-dsi/devilutionx-dsi.nds`, with generated `assets` and `mods` folders.
 
-See [DSI_PORT.md](DSI_PORT.md) for the implementation, diagnostics, revision history, and test instructions. [DSI_BUILD_INFO.json](DSI_BUILD_INFO.json) describes the tested local R6 test2 cross-build; it is not a promise that a later build will have the same hash or memory footprint.
+See [DSI_PORT.md](DSI_PORT.md) for the implementation, diagnostics, revision history, and test instructions. [DSI_BUILD_INFO.json](DSI_BUILD_INFO.json) describes the tested local R6 test3 cross-build; it is not a promise that a later build will have the same hash or memory footprint.
 
 ## Install on DSi
 

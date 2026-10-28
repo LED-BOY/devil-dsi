@@ -894,6 +894,7 @@ struct DsiOptions : OptionCategoryBase {
 	OptionEntryEnum<int> lButton;
 	OptionEntryEnum<int> rButton;
 	OptionEntryBoolean soundEffects;
+	OptionEntryInt<int> shoulderDefaultsVersion;
 };
 #endif
 

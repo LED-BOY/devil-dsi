@@ -31,3 +31,5 @@ Additional R6 test2 hardware checks:
 - [ ] Save a game, wait at least four seconds without moving, and confirm the notification and its border disappear. Repeat while paused and after dismissing it.
 - [ ] Load a save and change levels; confirm the top stays black until loading ends and then restores map/menu as appropriate.
 - [ ] Check menu clicks, footsteps, combat and short voice effects; test panning, the in-game SFX volume and Sound Effects toggle. Capture the startup log if silent or unstable. Music/movie audio and long clips remain unsupported.
+
+R6 test3: the slow-save duration underflow is reproduced and fixed in a host harness executing the actual save function. Verify the 1.5-second post-save notice on DSi. Verify default R uses one belt healing potion per press and that right-click/disabled/custom choices persist.

@@ -1,5 +1,41 @@
 # Experimental Nintendo DSi engine integration
 
+## R6 test3: slow-save timeout and default R healing potion
+
+The saved-message persistence had a second cause in `gamemenu_save_game`:
+`start + 1000 - now` was passed as an unsigned duration after writing the save.
+A 2.5-second SD write produced 4,294,965,796 ms (about 49.7 days). The saved
+notice now starts after SaveGame finishes and lasts a fixed 1500 ms. The test2
+redraw invalidation is retained. A harness executes the actual save-menu body
+with simulated fast writes, 2.5-second and 2-minute writes, and tick wraparound:
+the old body fails and the new body passes.
+
+R now defaults to **Use Health Potion**, drawing from the belt. It uses a
+separate SDL user event and bypasses keyboard/controller mappings, producing
+one use per physical press without repeats while held. It does not act while
+dead, paused, in NPC/game menus, during movies or loading. Inventory panels
+can remain open. L still defaults to Right Mouse Button. Both shoulder menus
+offer right-click, health potion, controller shoulder and disabled.
+
+The old default R=Controller Shoulder migrates once to the new healing action.
+Explicit Right Mouse Button or Disabled choices are preserved. After migration,
+choosing Controller Shoulder remains available and retains the engine's usual
+R mapping (mana potion unless rebound). INI values are `R Button=3` and
+`Shoulder Defaults Version=1`. The reader chord remains menu-only and consumes
+pending potion presses when L+R are pressed together.
+
+Run `python test/dsi-host/save_notice_test.py` with TCC configured, alongside
+the SDL driver suite. The latter verifies potion events, held/release/remap
+behavior and chord isolation. Actual belt use and message disappearance still
+need DSi confirmation.
+
+Wi-Fi module memory is not normal ARM9 working RAM; the Atheros is reached via
+SDIO. The DSi's separate 768 KiB NWRAM may be useful for selected workloads,
+but no FPS gain is established and this build does not remap memory banks.
+Performance work should profile rendering/blitting/map cost first.
+References: https://dsibrew.org/wiki/SD/MMC/SDIO_Registers and
+https://blocksds.skylyrac.net/docs/internal/memory_map/ .
+
 ## R6 test2: messages, loading screen and experimental effects audio
 
 - Message expiry now runs before the frame redraw decision. Expiry, dismissal,

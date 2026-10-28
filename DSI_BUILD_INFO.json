@@ -1,18 +1,18 @@
 {
-  "status": "R6 test2: save-message redraw, black loading screen, experimental hardware SFX; hardware untested",
+  "status": "R6 test3: bounded post-save timeout and default R healing potion; hardware untested",
   "source_repository": "https://github.com/LED-BOY/devil-dsi",
   "source_pull_request": "https://github.com/LED-BOY/devil-dsi/pull/1",
   "source_branch": "codex/r6-dsi-controls-video",
-  "source_base_commit": "dc63613c3f69f190d2e9adc33c599de13f1e1037",
+  "source_base_commit": "20dbd0831550b368d72a9909aeca858317316516",
   "source_modified_for_build": true,
-  "version_suffix": "-DSi-R6-test2",
+  "version_suffix": "-DSi-R6-test3",
   "cross_build": "passed: native Windows CMake/Ninja and devkitARM GCC 16.1.0",
   "host_test": "passed: actual SDL core/DSi driver, R3-R6 regressions",
   "hardware_tested": false,
   "emulator_tested": false,
   "potion_fix_hardware_confirmed": false,
-  "rom_bytes": 2278400,
-  "rom_sha256": "00d829035c19a4155968c7d8e7af487d2579d73215da288e04e3cfabaab1faf2",
+  "rom_bytes": 2279424,
+  "rom_sha256": "09f5c26e522eead92a244074a98ae8c2f23004252645583f327778e0b9264970",
   "rom_unit_code": 2,
   "header_crc16": "verified",
   "rom_segments": {
@@ -20,31 +20,31 @@
       "offset": 16384,
       "entry": "0x2004800",
       "ram": "0x2004000",
-      "bytes": 2181724
+      "bytes": 2182212
     },
     "arm7": {
-      "offset": 2198528,
+      "offset": 2199040,
       "entry": "0x2380000",
       "ram": "0x2380000",
       "bytes": 45940
     },
     "arm9i": {
-      "offset": 2247680,
+      "offset": 2248704,
       "entry": "0x0",
       "ram": "0x2400000",
       "bytes": 12
     },
     "arm7i": {
-      "offset": 2248192,
+      "offset": 2249216,
       "entry": "0x3807558",
       "ram": "0x2e80000",
       "bytes": 30004
     }
   },
   "arm9_elf": {
-    "text": 2164156,
+    "text": 2164644,
     "data": 17580,
-    "bss": 706860
+    "bss": 706932
   },
   "sound": true,
   "music": false,
