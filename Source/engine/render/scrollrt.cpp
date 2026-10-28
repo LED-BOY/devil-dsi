@@ -6,6 +6,7 @@
 #include "engine/render/scrollrt.h"
 #ifdef __DSI__
 #include "platform/dsi/dsi_video.h"
+#include "platform/dsi/dsi_render.h"
 #endif
 
 #include <cmath>
@@ -1190,11 +1191,11 @@ void CalcFirstTilePosition(Point &position, Displacement &offset)
 
 	// Skip rendering parts covered by the panels
 	if (CanPanelsCoverView() && (IsLeftPanelOpen() || IsRightPanelOpen())) {
-		const int multiplier = (*GetOptions().Graphics.zoom) ? 1 : 2;
+		const int multiplier = (IsGameplayZoomed()) ? 1 : 2;
 		position += Displacement(Direction::East) * multiplier;
 		offset.deltaX += -TILE_WIDTH * multiplier / 2 / 2;
 
-		if (IsLeftPanelOpen() && !*GetOptions().Graphics.zoom) {
+		if (IsLeftPanelOpen() && !IsGameplayZoomed()) {
 			offset.deltaX += SidePanelSize.width;
 			// SidePanelSize.width accounted for in Zoom()
 		}
@@ -1231,17 +1232,31 @@ void CalcFirstTilePosition(Point &position, Displacement &offset)
  */
 void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 {
-	// Limit rendering to the view area
-	const Surface &out = !*GetOptions().Graphics.zoom
-	    ? fullOut.subregionY(0, gnViewportHeight)
-	    : fullOut.subregionY(0, (gnViewportHeight + 1) / 2);
+	// UI composition stays on the 640x480 canvas; the low scene is a separate
+	// 320x240 allocation, with the viewport using its top 320x176 region.
+#ifdef __DSI__
+	const bool lowScene = *GetOptions().Dsi.sceneResolution == 320
+	    && fullOut.w() == 640 && fullOut.h() == 480;
+	static SDLSurfaceUniquePtr sceneSurface;
+	if (lowScene && !sceneSurface) {
+		sceneSurface.reset(SDL_CreateRGBSurface(0, 320, 240, 8, 0, 0, 0, 0));
+		if (!sceneSurface) ErrSdl();
+	}
+	if (lowScene) SDL_FillRect(sceneSurface.get(), nullptr, 0);
+	const Surface sceneOut = lowScene ? Surface(sceneSurface.get()) : fullOut;
+#else
+	const Surface &sceneOut = fullOut;
+#endif
+	const Surface out = !IsGameplayZoomed()
+	    ? sceneOut.subregionY(0, gnViewportHeight)
+	    : sceneOut.subregionY(0, (gnViewportHeight + 1) / 2);
 
 	int columns = tileColumns;
 	int rows = tileRows;
 
 	// Skip rendering parts covered by the panels
 	if (CanPanelsCoverView() && (IsLeftPanelOpen() || IsRightPanelOpen())) {
-		columns -= (*GetOptions().Graphics.zoom) ? 2 : 4;
+		columns -= (IsGameplayZoomed()) ? 2 : 4;
 	}
 
 	UpdateMissilesRendererData();
@@ -1276,8 +1291,13 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	DunRenderStats.clear();
 #endif
 
+	int lightingWidth = gnScreenWidth;
+	int lightingHeight = gnViewportHeight;
+#ifdef __DSI__
+	if (lowScene) { lightingWidth = out.w(); lightingHeight = out.h(); }
+#endif
 	Lightmap lightmap = Lightmap::build(*GetOptions().Graphics.perPixelLighting, position, Point {} + offset,
-	    gnScreenWidth, gnViewportHeight, rows, columns,
+	    lightingWidth, lightingHeight, rows, columns,
 	    out.at(0, 0), out.pitch(), LightTables, FullyLitLightTable, FullyDarkLightTable,
 	    dLight, MicroTileLen);
 
@@ -1285,7 +1305,26 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	DrawTileContent(out, lightmap, position, Point {} + offset, rows, columns);
 	DrawOOB(out, lightmap, position, Point {} + offset, rows, columns);
 
-	if (*GetOptions().Graphics.zoom) {
+#ifdef __DSI__
+	if (lowScene) {
+		int viewportWidth = fullOut.w();
+		int viewportX = 0;
+		if (CanPanelsCoverView()) {
+			if (IsLeftPanelOpen()) {
+				viewportWidth -= SidePanelSize.width;
+				viewportX = SidePanelSize.width;
+			} else if (IsRightPanelOpen()) {
+				viewportWidth -= SidePanelSize.width;
+			}
+		}
+		if (!DsiExpandScene2x(out.at(0, 0), out.w(), out.h(), out.pitch(),
+		        fullOut.at(viewportX, 0), viewportWidth, gnViewportHeight, fullOut.pitch())) {
+			SDL_SetError("Invalid DSi scene composition");
+			ErrSdl();
+		}
+	} else
+#endif
+	if (IsGameplayZoomed()) {
 		Zoom(fullOut.subregionY(0, gnViewportHeight));
 	}
 
@@ -1338,11 +1377,11 @@ void DrawView(const Surface &out, Point startPosition)
 				continue;
 			if (megaTiles)
 				pixelCoords += Displacement { 0, TILE_HEIGHT / 2 };
-			if (*GetOptions().Graphics.zoom)
+			if (IsGameplayZoomed())
 				pixelCoords *= 2;
 			if (debugGridTextNeeded && GetDebugGridText(dunCoords, debugGridText)) {
 				Size tileSize = { TILE_WIDTH, TILE_HEIGHT };
-				if (*GetOptions().Graphics.zoom)
+				if (IsGameplayZoomed())
 					tileSize *= 2;
 				DrawString(out, debugGridText, { pixelCoords - Displacement { 0, tileSize.height }, tileSize },
 				    { .flags = UiFlags::ColorRed | UiFlags::AlignCenter | UiFlags::VerticalCenter });
@@ -1350,7 +1389,7 @@ void DrawView(const Surface &out, Point startPosition)
 			if (DebugGrid) {
 				int halfTileWidth = TILE_WIDTH / 2;
 				int halfTileHeight = TILE_HEIGHT / 2;
-				if (*GetOptions().Graphics.zoom) {
+				if (IsGameplayZoomed()) {
 					halfTileWidth *= 2;
 					halfTileHeight *= 2;
 				}
@@ -1613,7 +1652,7 @@ int RowsCoveredByPanel()
 	}
 
 	int rows = mainPanelSize.height / TILE_HEIGHT;
-	if (*GetOptions().Graphics.zoom) {
+	if (IsGameplayZoomed()) {
 		rows /= 2;
 	}
 
@@ -1628,7 +1667,7 @@ void CalcTileOffset(int *offsetX, int *offsetY)
 	int x;
 	int y;
 
-	if (!*GetOptions().Graphics.zoom) {
+	if (!IsGameplayZoomed()) {
 		x = screenWidth % TILE_WIDTH;
 		y = viewportHeight % TILE_HEIGHT;
 	} else {
@@ -1659,7 +1698,7 @@ void TilesInView(int *rcolumns, int *rrows)
 		rows++;
 	}
 
-	if (*GetOptions().Graphics.zoom) {
+	if (IsGameplayZoomed()) {
 		// Half the number of tiles, rounded up
 		if ((columns & 1) != 0) {
 			columns++;
@@ -1677,14 +1716,14 @@ void TilesInView(int *rcolumns, int *rrows)
 
 void CalcViewportGeometry()
 {
-	const int zoomFactor = *GetOptions().Graphics.zoom ? 2 : 1;
+	const int zoomFactor = IsGameplayZoomed() ? 2 : 1;
 	const int screenWidth = GetScreenWidth() / zoomFactor;
 	const int screenHeight = GetScreenHeight() / zoomFactor;
 	const int panelHeight = GetMainPanel().size.height / zoomFactor;
 	const int pixelsToPanel = screenHeight - panelHeight;
 	Point playerPosition { screenWidth / 2, pixelsToPanel / 2 };
 
-	if (*GetOptions().Graphics.zoom)
+	if (IsGameplayZoomed())
 		playerPosition.y += TILE_HEIGHT / 4;
 
 	const int tilesToTop = (playerPosition.y + TILE_HEIGHT - 1) / TILE_HEIGHT;
@@ -1954,7 +1993,7 @@ void DrawAndBlit()
 			    DsiMapBuffer(), DSI_WIDTH, DSI_HEIGHT, 8, DSI_WIDTH, 0, 0, 0, 0) };
 			if (!mapSurface) ErrSdl();
 			SDL_FillRect(mapSurface.get(), nullptr, 0);
-			DrawDsiAutomap(Surface(mapSurface.get()));
+			if (DsiTopMapEnabled()) DrawDsiAutomap(Surface(mapSurface.get()));
 			if (DsiPerfEnabled()) {
 				DsiPerfStats stats {};
 				DsiPerfGetStats(&stats);

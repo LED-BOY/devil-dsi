@@ -895,6 +895,8 @@ struct DsiOptions : OptionCategoryBase {
 	OptionEntryEnum<int> rButton;
 	OptionEntryEnum<int> mapRefresh;
 	OptionEntryBoolean performanceStats;
+	OptionEntryBoolean topMap;
+	OptionEntryEnum<int> sceneResolution;
 	OptionEntryBoolean soundEffects;
 	OptionEntryInt<int> shoulderDefaultsVersion;
 };
@@ -947,6 +949,15 @@ struct Options {
  * @brief Get the Options singleton object
  */
 [[nodiscard]] Options &GetOptions();
+
+// Low-resolution DSi scenes share the established zoom camera/input transform.
+inline bool IsGameplayZoomed()
+{
+#ifdef __DSI__
+	if (*GetOptions().Dsi.sceneResolution == 320) return true;
+#endif
+	return *GetOptions().Graphics.zoom;
+}
 
 bool HardwareCursorSupported();
 

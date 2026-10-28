@@ -25,6 +25,18 @@ static enum DsiTopView movie_restore_view;
 static int loading_depth;
 static enum DsiTopView loading_restore_view;
 static int map_hz = 15, map_valid, map_pending = 1;
+static int map_enabled = 1;
+static void refresh_top_display(void);
+
+void DsiConfigureMap(int enabled)
+{
+    if (map_enabled == !!enabled) return;
+    map_enabled = !!enabled;
+    map_valid = 0;
+    map_pending = 0;
+    refresh_top_display();
+}
+int DsiTopMapEnabled(void) { return map_enabled; }
 static Uint32 map_updated;
 static int perf_enabled, perf_active;
 static u64 perf_window;
@@ -42,12 +54,15 @@ void DsiConfigurePerformance(int hz, int show_stats)
     perf_active = perf_frames = 0;
     SDL_memset(perf_total, 0, sizeof(perf_total));
     SDL_memset(&perf_stats, 0, sizeof(perf_stats));
+    refresh_top_display();
 }
 
 int DsiMapNeedsRedraw(void)
 {
     return top_view == DSI_TOP_MAP && !loading_depth && !movie_active
-        && (!map_valid || !map_hz || (Uint32)(SDL_GetTicks() - map_updated) >= (1000u + map_hz - 1) / map_hz);
+        && (map_enabled || perf_enabled)
+        && (!map_valid || (map_enabled && !map_hz)
+            || (Uint32)(SDL_GetTicks() - map_updated) >= (map_enabled ? (1000u + map_hz - 1) / map_hz : 500));
 }
 
 void DsiMapReady(void)
@@ -128,18 +143,30 @@ void DsiSetTopView(enum DsiTopView view)
     focus_x = focus_y = -1;
     manual_reading = 0;
     if (view == DSI_TOP_MENU) { reading_x = 320; reading_y = 240; }
+    refresh_top_display();
+}
+
+static int top_is_black(void)
+{
+    return top_view == DSI_TOP_MOVIE
+        || (top_view == DSI_TOP_MAP && !map_enabled && !perf_enabled);
+}
+
+static void refresh_top_display(void)
+{
     if (top_bg < 0) return;
-    if (view == DSI_TOP_DIAGNOSTICS) {
+    if (top_view == DSI_TOP_DIAGNOSTICS) {
         bgHide(top_bg);
         for (int i = 0; i < 256; ++i) BG_PALETTE_SUB[i] = console_palette[i];
         bgShow(4); /* consoleDemoInit's sub BG0 */
-    } else if (view == DSI_TOP_MOVIE) {
+    } else if (top_is_black()) {
         bgHide(4);
         bgHide(top_bg);
         BG_PALETTE_SUB[0] = 0; /* Black backdrop, independent of movie palette. */
     } else {
         bgHide(4);
         for (int i = 0; i < 256; ++i) BG_PALETTE_SUB[i] = game_palette[i];
+        if (top_view == DSI_TOP_MAP && !map_enabled) BG_PALETTE_SUB[0] = 0;
         bgShow(top_bg);
     }
 }
@@ -252,7 +279,7 @@ static void update(SDL_VideoDevice *_this, int count, SDL_Rect *rects)
     if (top_view == DSI_TOP_MENU)
         dsi_present_reading_index8(surface->pixels, surface->w, surface->h,
             surface->pitch, reading_x, reading_y, reading_percent, bgGetGfxPtr(top_bg), 128);
-    else if (top_view == DSI_TOP_MAP && map_pending) {
+    else if (top_view == DSI_TOP_MAP && map_pending && (map_enabled || perf_enabled)) {
         dsi_present_index8(map_pixels, DSI_WIDTH, DSI_HEIGHT, DSI_WIDTH,
             bgGetGfxPtr(top_bg), 128);
         map_pending = 0;
@@ -266,7 +293,8 @@ static int set_colors(SDL_VideoDevice *_this, int first, int count, SDL_Color *c
     for (int i = 0; i < count && first + i < 256; ++i) {
         uint16_t color = dsi_palette_color(colors[i].r, colors[i].g, colors[i].b);
         game_palette[first + i] = BG_PALETTE[first + i] = color;
-        if (top_view != DSI_TOP_DIAGNOSTICS && top_view != DSI_TOP_MOVIE) BG_PALETTE_SUB[first + i] = color;
+        if (top_view != DSI_TOP_DIAGNOSTICS && !top_is_black())
+            BG_PALETTE_SUB[first + i] = top_view == DSI_TOP_MAP && !map_enabled && first + i == 0 ? 0 : color;
     }
     static unsigned updates;
     if (count && updates++ < 4)

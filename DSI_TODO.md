@@ -59,3 +59,17 @@ R6 test5 hardware checks (pending):
   the ITCM kernels. Keep the test4 executable as the fallback.
 - [ ] Use stage timings before selecting further resolution, renderer or SD
   caching work; no hardware FPS gain is inferred from host/linker tests.
+
+
+R6 test6 hardware checks (pending):
+
+- [ ] Toggle Top Map Off: ordinary gameplay top must be black, menu/panel reader
+  must remain available, and loading/movie returns must respect the switch.
+  Turn Performance Stats on to see timing text on black without the automap.
+- [ ] Choose Scene Resolution 320x240 before entering/loading a game; confirm the
+  closer camera, town/dungeon/combat rendering and unchanged complete HUD.
+- [ ] Verify cursor/entity selection, ground item pickup, touch/right-click,
+  inventory, character panel, stash and labels at 320 mode. Save/reload and
+  compare 640 mode with the same map/audio/statistics settings.
+- [ ] Restart to check Scene Resolution and Top Map persist. Use
+  Scene Resolution=640 / Top Map=1 in [Nintendo DSi] for the default fallback.

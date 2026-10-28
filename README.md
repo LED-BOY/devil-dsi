@@ -4,7 +4,7 @@ An experimental, unofficial Nintendo DSi port of [DevilutionX](https://github.co
 
 **This is a modified DevilutionX source tree.** Upstream engine code, assets, authorship, and license notices are retained. This project is not an official DevilutionX release.
 
-## Current status: R6 test5 (experimental)
+## Current status: R6 test6 (experimental)
 
 - Builds an actual DS/DSi `.nds` executable that calls the game engine.
 - Full game on the **bottom display**; a native-resolution map on top during gameplay.
@@ -19,7 +19,7 @@ The user reports R3 working on a DSi; the supplied trace reached town and entere
 
 ## Next version
 
-R6 test5 adds ARM/ITCM sprite pixel kernels, speed optimization for selected renderer files and aligned word VRAM copies, retaining the same game view and controls. R6 test4 reduces top-map rendering/copying to 15 Hz by default, caches scaling tables and adds an optional native-size performance overlay. Test3 fixes the unsigned saved-message timeout after slow SD writes and defaults R to a dedicated belt healing-potion action. It retains test2 loading blackout, redraw cleanup and experimental hardware effects audio. Full cross-build and SDL host regressions pass; DSi testing remains pending. See [DSI_PORT.md](DSI_PORT.md) and the [hardware checklist](DSI_TODO.md).
+R6 test6 adds Top Map On/Off and a 320x240 scene mode with a closer camera and preserved 640x480 interface. R6 test5 adds ARM/ITCM sprite pixel kernels, speed optimization for selected renderer files and aligned word VRAM copies, retaining the same game view and controls. R6 test4 reduces top-map rendering/copying to 15 Hz by default, caches scaling tables and adds an optional native-size performance overlay. Test3 fixes the unsigned saved-message timeout after slow SD writes and defaults R to a dedicated belt healing-potion action. It retains test2 loading blackout, redraw cleanup and experimental hardware effects audio. Full cross-build and SDL host regressions pass; DSi testing remains pending. See [DSI_PORT.md](DSI_PORT.md) and the [hardware checklist](DSI_TODO.md).
 
 ## Nintendo DSi options
 
@@ -27,6 +27,8 @@ Open **Settings -> Nintendo DSi** from the main menu. The choices apply immediat
 
 | Setting | Choices | Default |
 | --- | --- | --- |
+| Scene Resolution | 640x480, 320x240 (Faster) | 640x480 |
+| Top Map | On, Off | On |
 | Menu Reading Zoom | 1.5x, 2x, 2.5x | 2x |
 | Top Map Zoom | Far (25%), Wide (35%), Close (50%) | Wide (35%) |
 | Top Map Refresh | 10 Hz, 15 Hz, Every Frame | 15 Hz |
@@ -38,6 +40,37 @@ Open **Settings -> Nintendo DSi** from the main menu. The choices apply immediat
 Map percentages refer to map scale: lower values show more area. The new default is wider than R4. Reading zoom is relative to the complete bottom overview. L right-click uses the current pointer; L+touch moves the pointer without also left-clicking. Press L+R together in menus for the reader gesture. A brief 120 ms menu-only delay lets the chord cancel a pending right-click; gameplay right-click is immediate.
 
 Experimental SFX use a 1 MiB bounded cache; long clips and MP3 replacements may be skipped. Music and movie audio are unavailable. For a silent fallback before boot, put `Sound Effects=0` under `[Nintendo DSi]` in `diablo.ini`.
+
+## Scene resolution and map switch (R6 test6)
+
+Open **Settings -> Nintendo DSi** before entering a game and choose **Scene
+Resolution -> 320x240 (Faster)**. The scene renders in a separate 320x240 indexed
+buffer, then expands into the existing interface canvas. With the normal HUD,
+the visible world uses 320x176 and the HUD occupies the equivalent bottom 64
+rows. This is a closer camera showing fewer world tiles, not the same field of
+view with smaller sprites. The menus, HUD, inventory and reading zoom retain
+their 640x480 logical layout, so buttons and text remain accessible. The output
+still scales to the physical 256x192 display. The normal 640x480 scene is the
+default. Change this setting outside a running game and enter/load again.
+
+This mode targets the standard 640x480 layout. It uses the same 2x camera and
+input transform as the engine's existing Graphics Zoom, without changing that
+saved preference. Cursor selection and item/floating labels share that transform.
+On a nonstandard logical canvas, the established in-place zoom path is retained.
+The extra low-scene allocation is 76800 bytes plus SDL metadata/palette, allocated
+only after entering gameplay in 320 mode. It is not a whole-engine 320x240 UI port.
+
+**Top Map -> Off** skips automap drawing and VRAM copying during ordinary play.
+With Performance Stats off, the top is black, including through palette changes
+and returns from loading/movies. Menu reading zoom still appears when panels or
+menus open. Optional Performance Stats can remain visible on black, refreshing
+at 2 Hz without drawing the automap, to compare FPS/Draw/Map/Copy B/T.
+
+Both choices save normally in diablo.ini under [Nintendo DSi]:
+`Scene Resolution=320` and `Top Map=0`. To restore the defaults before boot, use
+`Scene Resolution=640` and `Top Map=1`. Scene/HUD composition and map-off behavior
+pass host tests; actual DSi graphics, touch targeting and speed still need testing.
+Compare 640 vs 320 in the same scene, with identical map/audio/stats choices.
 
 ## Renderer optimization (R6 test5)
 

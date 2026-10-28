@@ -63,7 +63,7 @@ extern "C" int main(int argc, char **argv)
 	consoleDebugInit(DebugDevice_CONSOLE);
 	defaultExceptionHandler();
 	setvbuf(stdout, nullptr, _IONBF, 0);
-	printf("DevilutionX DSi R6 test5\nFast ARM renderer kernels\n");
+	printf("DevilutionX DSi R6 test6\nScene resolution + map toggle\n");
 	if (!isDSiMode() || !fatInitDefault()) {
 		printf("DSi mode and SD access required.\nSTART: exit\n");
 		while (pmMainLoop()) { swiWaitForVBlank(); scanKeys(); if (keysDown() & KEY_START) break; }

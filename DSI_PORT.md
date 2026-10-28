@@ -1,6 +1,34 @@
 # Experimental Nintendo DSi engine integration
 
 
+## R6 test6: top-map toggle and low scene rendering
+
+Top Map Off keeps the semantic gameplay view (so input/potions remain active)
+but skips automap work. The top is hidden with black backdrop when statistics
+are off. Menus still show the reader. Statistics can draw onto a zero-filled
+map buffer at 2 Hz, without DrawDsiAutomap. Palette index zero stays black in
+that mode. Loading/movie/diagnostic restoration and re-enabling are tested.
+
+Scene Resolution is a DSi setting, changeable before entering a game: 640x480
+(default) or 320x240. A separate 320x240 indexed SDL surface supplies low-scene
+rendering on the standard 640x480 canvas. With the normal HUD the world viewport
+is 320x176; 2x expansion leaves HUD/panel regions for the original interface.
+UI/output/touch coordinates remain logical 640x480. IsGameplayZoomed unifies
+camera geometry, cursor hit tests and labels with the existing zoom transform;
+low mode forces that transform without changing the Graphics Zoom preference.
+The result is a closer camera, not an unchanged view with quarter-size art.
+Nonstandard logical canvases retain the existing in-place zoom fallback.
+
+The RAM-only expansion kernel validates dimensions/pitches/offsets and uses
+standard Calico-loaded ARM/ITCM. Tests compare every output pixel for full view,
+left/right panels, HUD preservation, odd dimensions and invalid arguments.
+The extra low-scene allocation is 76800 bytes plus SDL metadata/palette; it does
+not replace the full UI buffer. The seven kernels use 4040/32736 ITCM bytes.
+The actual whole-engine UI has not been redesigned to fit 320x240.
+
+Hardware confirmation remains required for lower-resolution scene visuals,
+left/right panel transitions, touch/entity targeting and actual FPS gains.
+
 ## R6 test5: renderer kernels and fast instruction memory
 
 `dsi_render.c` provides byte-exact palette-map, blend, mapped-blend and blended

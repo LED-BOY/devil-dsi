@@ -243,6 +243,9 @@ void ApplyDsiOptions()
 	if (*options.mapRefresh != 0 && *options.mapRefresh != 10 && *options.mapRefresh != 15)
 		options.mapRefresh.SetValue(15);
 	DsiConfigurePerformance(*options.mapRefresh, *options.performanceStats);
+	DsiConfigureMap(*options.topMap);
+	if (*options.sceneResolution != 320 && *options.sceneResolution != 640)
+		options.sceneResolution.SetValue(640);
 	DsiAudioSetEnabled(*options.soundEffects);
 }
 } // namespace
@@ -260,6 +263,9 @@ DsiOptions::DsiOptions()
     , mapRefresh("Map Refresh", OptionEntryFlags::None, N_("Top Map Refresh"), N_("Lower refresh rates reduce top-map drawing and copying without limiting gameplay FPS."), 15,
           { { 10, "10 Hz" }, { 15, "15 Hz" }, { 0, N_("Every Frame") } })
     , performanceStats("Performance Stats", OptionEntryFlags::None, N_("Performance Stats"), N_("Show gameplay FPS and average drawing/copy times on the top map. No per-frame SD logging."), false)
+    , topMap("Top Map", OptionEntryFlags::None, N_("Top Map"), N_("Show the gameplay map. Off skips map drawing and copying; menu reading zoom is kept. Performance Stats can still show on black."), true)
+    , sceneResolution("Scene Resolution", OptionEntryFlags::CantChangeInGame, N_("Scene Resolution"), N_("Render the game scene at 320x240 for a closer view and less drawing. Menus and HUD keep their 640x480 layout. Change before entering a game."), 640,
+          { { 640, "640x480" }, { 320, N_("320x240 (Faster)") } })
     , soundEffects("Sound Effects", OptionEntryFlags::None, N_("Sound Effects"), N_("Experimental DSi hardware sound effects. Music and movie audio are not supported. Turn off to reduce memory and CPU use."), true)
     , shoulderDefaultsVersion("Shoulder Defaults Version", OptionEntryFlags::Invisible, "Shoulder Defaults Version", "DSi shoulder default migration version.", 0, { 0, 1 })
 {
@@ -267,6 +273,8 @@ DsiOptions::DsiOptions()
 	mapScale.SetValueChangedCallback(ApplyDsiOptions);
 	mapRefresh.SetValueChangedCallback(ApplyDsiOptions);
 	performanceStats.SetValueChangedCallback(ApplyDsiOptions);
+	topMap.SetValueChangedCallback(ApplyDsiOptions);
+	sceneResolution.SetValueChangedCallback(ApplyDsiOptions);
 	lButton.SetValueChangedCallback(ApplyDsiOptions);
 	rButton.SetValueChangedCallback(ApplyDsiOptions);
 	soundEffects.SetValueChangedCallback(ApplyDsiOptions);
@@ -274,7 +282,7 @@ DsiOptions::DsiOptions()
 
 std::vector<OptionEntryBase *> DsiOptions::GetEntries()
 {
-	return { &menuZoom, &mapScale, &mapRefresh, &performanceStats, &lButton, &rButton, &soundEffects, &shoulderDefaultsVersion };
+	return { &sceneResolution, &topMap, &menuZoom, &mapScale, &mapRefresh, &performanceStats, &lButton, &rButton, &soundEffects, &shoulderDefaultsVersion };
 }
 #endif
 

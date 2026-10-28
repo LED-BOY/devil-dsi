@@ -24,6 +24,8 @@ void DsiSetReadingFocus(int x, int y);
 uint8_t *DsiMapBuffer(void);
 /* 0 = every frame; otherwise 10 or 15 Hz. Rendering and VRAM copies are gated. */
 void DsiConfigurePerformance(int map_hz, int show_stats);
+void DsiConfigureMap(int enabled);
+int DsiTopMapEnabled(void);
 int DsiMapNeedsRedraw(void);
 void DsiMapReady(void);
 enum DsiPerfStage { DSI_PERF_RENDER, DSI_PERF_MAP, DSI_PERF_BOTTOM, DSI_PERF_TOP, DSI_PERF_COUNT };
