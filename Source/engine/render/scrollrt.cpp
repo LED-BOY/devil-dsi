@@ -1848,6 +1848,8 @@ void DrawAndBlit()
 	    || CharFlag || QuestLogIsOpen || IsStashOpen || IsVisualStoreOpen
 	    || IsPlayerInStore() || qtextflag || SpellSelectFlag || DropGoldFlag
 	    || IsWithdrawGoldOpen || HelpFlag || ChatLogFlag || PauseMode != 0;
+	if (!readingMenu) DsiPerfBeginFrame();
+	const uint64_t renderStarted = DsiPerfClock();
 	if (readingMenu) {
 		DsiSetTopView(DSI_TOP_MENU);
 		const int focusX = (invflag || SpellbookFlag) ? gnScreenWidth - 160
@@ -1943,16 +1945,37 @@ void DrawAndBlit()
 	}
 
 #ifdef __DSI__
+	DsiPerfRecord(DSI_PERF_RENDER, renderStarted);
 	if (!readingMenu) {
-		static SDLSurfaceUniquePtr mapSurface { SDL_CreateRGBSurfaceFrom(
-		    DsiMapBuffer(), DSI_WIDTH, DSI_HEIGHT, 8, DSI_WIDTH, 0, 0, 0, 0) };
-		if (!mapSurface) ErrSdl();
-		SDL_FillRect(mapSurface.get(), nullptr, 0);
-		DrawDsiAutomap(Surface(mapSurface.get()));
 		DsiSetTopView(DSI_TOP_MAP);
+		if (DsiMapNeedsRedraw()) {
+			const uint64_t mapStarted = DsiPerfClock();
+			static SDLSurfaceUniquePtr mapSurface { SDL_CreateRGBSurfaceFrom(
+			    DsiMapBuffer(), DSI_WIDTH, DSI_HEIGHT, 8, DSI_WIDTH, 0, 0, 0, 0) };
+			if (!mapSurface) ErrSdl();
+			SDL_FillRect(mapSurface.get(), nullptr, 0);
+			DrawDsiAutomap(Surface(mapSurface.get()));
+			if (DsiPerfEnabled()) {
+				DsiPerfStats stats {};
+				DsiPerfGetStats(&stats);
+				SDL_Rect statsBounds { 0, 0, DSI_WIDTH, 44 };
+				SDL_FillRect(mapSurface.get(), &statsBounds, 0);
+				const Surface mapOut(mapSurface.get());
+				DrawString(mapOut, StrCat("FPS ", stats.fps10 / 10, ".", stats.fps10 % 10), Point { 2, 2 });
+				DrawString(mapOut, StrCat("Draw ", stats.microseconds[DSI_PERF_RENDER] / 1000, ".", stats.microseconds[DSI_PERF_RENDER] / 100 % 10,
+				    " Map ", stats.microseconds[DSI_PERF_MAP] / 1000, ".", stats.microseconds[DSI_PERF_MAP] / 100 % 10, " ms"), Point { 2, 16 });
+				DrawString(mapOut, StrCat("Copy B ", stats.microseconds[DSI_PERF_BOTTOM] / 1000, ".", stats.microseconds[DSI_PERF_BOTTOM] / 100 % 10,
+				    " T ", stats.microseconds[DSI_PERF_TOP] / 1000, ".", stats.microseconds[DSI_PERF_TOP] / 100 % 10, " ms"), Point { 2, 30 });
+			}
+			DsiMapReady();
+			DsiPerfRecord(DSI_PERF_MAP, mapStarted);
+		}
 	}
 #endif
 	RenderPresent();
+#ifdef __DSI__
+	if (!readingMenu) DsiPerfEndFrame();
+#endif
 }
 
 } // namespace devilution

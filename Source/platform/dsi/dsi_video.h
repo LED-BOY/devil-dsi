@@ -22,6 +22,18 @@ void DsiSetLoading(int loading);
 void DsiRestoreDiagnostics(void);
 void DsiSetReadingFocus(int x, int y);
 uint8_t *DsiMapBuffer(void);
+/* 0 = every frame; otherwise 10 or 15 Hz. Rendering and VRAM copies are gated. */
+void DsiConfigurePerformance(int map_hz, int show_stats);
+int DsiMapNeedsRedraw(void);
+void DsiMapReady(void);
+enum DsiPerfStage { DSI_PERF_RENDER, DSI_PERF_MAP, DSI_PERF_BOTTOM, DSI_PERF_TOP, DSI_PERF_COUNT };
+struct DsiPerfStats { unsigned fps10, microseconds[DSI_PERF_COUNT]; };
+int DsiPerfEnabled(void);
+uint64_t DsiPerfClock(void);
+void DsiPerfBeginFrame(void);
+void DsiPerfRecord(enum DsiPerfStage stage, uint64_t start);
+void DsiPerfEndFrame(void);
+void DsiPerfGetStats(struct DsiPerfStats *stats);
 
 /* Coordinates use the same nearest-neighbour transform as the presenter. */
 int dsi_source_coordinate(int screen_coordinate, int screen_extent, int source_extent);

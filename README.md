@@ -4,7 +4,7 @@ An experimental, unofficial Nintendo DSi port of [DevilutionX](https://github.co
 
 **This is a modified DevilutionX source tree.** Upstream engine code, assets, authorship, and license notices are retained. This project is not an official DevilutionX release.
 
-## Current status: R6 test3 (experimental)
+## Current status: R6 test4 (experimental)
 
 - Builds an actual DS/DSi `.nds` executable that calls the game engine.
 - Full game on the **bottom display**; a native-resolution map on top during gameplay.
@@ -19,7 +19,7 @@ The user reports R3 working on a DSi; the supplied trace reached town and entere
 
 ## Next version
 
-R6 test3 fixes the unsigned saved-message timeout after slow SD writes and defaults R to a dedicated belt healing-potion action. It retains test2 loading blackout, redraw cleanup and experimental hardware effects audio. Full cross-build and SDL host regressions pass; DSi testing remains pending. See [DSI_PORT.md](DSI_PORT.md) and the [hardware checklist](DSI_TODO.md).
+R6 test4 reduces top-map rendering/copying to 15 Hz by default, caches scaling tables and adds an optional native-size performance overlay. Test3 fixes the unsigned saved-message timeout after slow SD writes and defaults R to a dedicated belt healing-potion action. It retains test2 loading blackout, redraw cleanup and experimental hardware effects audio. Full cross-build and SDL host regressions pass; DSi testing remains pending. See [DSI_PORT.md](DSI_PORT.md) and the [hardware checklist](DSI_TODO.md).
 
 ## Nintendo DSi options
 
@@ -29,6 +29,8 @@ Open **Settings -> Nintendo DSi** from the main menu. The choices apply immediat
 | --- | --- | --- |
 | Menu Reading Zoom | 1.5x, 2x, 2.5x | 2x |
 | Top Map Zoom | Far (25%), Wide (35%), Close (50%) | Wide (35%) |
+| Top Map Refresh | 10 Hz, 15 Hz, Every Frame | 15 Hz |
+| Performance Stats | On, Off | Off |
 | L Button Action | Right Mouse Button, Use Health Potion, Controller Shoulder, Disabled | Right Mouse Button |
 | R Button Action | Use Health Potion, Right Mouse Button, Controller Shoulder, Disabled | Use Health Potion |
 | Sound Effects | On, Off | On (experimental) |
@@ -36,6 +38,32 @@ Open **Settings -> Nintendo DSi** from the main menu. The choices apply immediat
 Map percentages refer to map scale: lower values show more area. The new default is wider than R4. Reading zoom is relative to the complete bottom overview. L right-click uses the current pointer; L+touch moves the pointer without also left-clicking. Press L+R together in menus for the reader gesture. A brief 120 ms menu-only delay lets the chord cancel a pending right-click; gameplay right-click is immediate.
 
 Experimental SFX use a 1 MiB bounded cache; long clips and MP3 replacements may be skipped. Music and movie audio are unavailable. For a silent fallback before boot, put `Sound Effects=0` under `[Nintendo DSi]` in `diablo.ini`.
+
+## Performance measurements (R6 test4)
+
+Settings -> Nintendo DSi -> Performance Stats shows gameplay FPS on the top map.
+Draw and Map are average CPU milliseconds per gameplay frame. Copy B and T are
+bottom/top display presentation costs, also averaged per gameplay frame; skipped
+map work counts as zero. Numbers update about twice a second. The overlay uses
+44 rows of the top map and is hidden during menus, movies and loading. It does
+not write performance samples to the SD card. FPS includes ordinary frame-rate
+limiting and time between gameplay frames; the stage totals do not include all
+game logic or waiting. Statistics are disabled by default.
+
+Top Map Refresh gates both drawing the automap and copying it into top VRAM.
+It does not cap bottom-screen FPS. 15 Hz is the default; 10 Hz reduces map work
+further; Every Frame restores the earlier cadence for comparison. Changes to
+map scale, refresh, statistics, or the top view force a fresh map. If gameplay
+runs below the chosen map rate, the map updates at the available frame rate.
+A short load/menu transition always invalidates the old map.
+
+The presenters cache horizontal/vertical scaling tables separately for overview
+and menu reader. Native 256x192 maps take a direct paired-byte copy path. Source
+alignment and pitch may vary; VRAM still receives halfword writes. No DMA/cache
+remapping, Wi-Fi RAM, lower internal resolution or new SD cache is enabled.
+Those changes should follow measured bottlenecks. No hardware FPS gain is yet
+claimed; the host suite checks output pixels, scheduling and timer arithmetic,
+not DSi speed. Compare 10/15 Hz against Every Frame in the same busy scene.
 
 ## Build on Windows
 

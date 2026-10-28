@@ -24,11 +24,79 @@ static int movie_active;
 static enum DsiTopView movie_restore_view;
 static int loading_depth;
 static enum DsiTopView loading_restore_view;
+static int map_hz = 15, map_valid, map_pending = 1;
+static Uint32 map_updated;
+static int perf_enabled, perf_active;
+static u64 perf_window;
+static unsigned perf_frames;
+static u64 perf_current[DSI_PERF_COUNT], perf_total[DSI_PERF_COUNT];
+static struct DsiPerfStats perf_stats;
+
+void DsiConfigurePerformance(int hz, int show_stats)
+{
+    hz = (hz == 0 || hz == 10) ? hz : 15;
+    if (map_hz != hz || perf_enabled != !!show_stats) map_valid = 0;
+    map_hz = hz;
+    if (perf_enabled == !!show_stats) return;
+    perf_enabled = !!show_stats;
+    perf_active = perf_frames = 0;
+    SDL_memset(perf_total, 0, sizeof(perf_total));
+    SDL_memset(&perf_stats, 0, sizeof(perf_stats));
+}
+
+int DsiMapNeedsRedraw(void)
+{
+    return top_view == DSI_TOP_MAP && !loading_depth && !movie_active
+        && (!map_valid || !map_hz || (Uint32)(SDL_GetTicks() - map_updated) >= (1000u + map_hz - 1) / map_hz);
+}
+
+void DsiMapReady(void)
+{
+    map_updated = SDL_GetTicks();
+    map_valid = map_pending = 1;
+}
+
+int DsiPerfEnabled(void) { return perf_enabled; }
+uint64_t DsiPerfClock(void) { return perf_enabled ? tickGetCount() : 0; }
+void DsiPerfBeginFrame(void)
+{
+    if (!perf_enabled) return;
+    u64 now = tickGetCount();
+    /* Do not average a menu/loading gap into gameplay FPS. */
+    if (!perf_frames || now - perf_window > 2 * TICK_FREQ) {
+        perf_window = now;
+        perf_frames = 0;
+        SDL_memset(perf_total, 0, sizeof(perf_total));
+    }
+    SDL_memset(perf_current, 0, sizeof(perf_current));
+    perf_active = 1;
+}
+void DsiPerfRecord(enum DsiPerfStage stage, uint64_t start)
+{
+    if (perf_enabled && perf_active && stage >= 0 && stage < DSI_PERF_COUNT)
+        perf_current[stage] += tickGetCount() - start;
+}
+void DsiPerfEndFrame(void)
+{
+    if (!perf_enabled || !perf_active) return;
+    perf_active = 0;
+    ++perf_frames;
+    for (int i = 0; i < DSI_PERF_COUNT; ++i) perf_total[i] += perf_current[i];
+    u64 elapsed = tickGetCount() - perf_window;
+    if (elapsed < TICK_FREQ / 2) return;
+    perf_stats.fps10 = (unsigned)((u64)perf_frames * 10 * TICK_FREQ / elapsed);
+    for (int i = 0; i < DSI_PERF_COUNT; ++i)
+        perf_stats.microseconds[i] = (unsigned)(perf_total[i] * 1000000 / TICK_FREQ / perf_frames);
+    perf_frames = 0;
+}
+void DsiPerfGetStats(struct DsiPerfStats *stats) { if (stats) *stats = perf_stats; }
 
 void DsiConfigureOptions(int zoom, int scale, int l_action, int r_action)
 {
     reading_percent = (zoom == 150 || zoom == 250) ? zoom : 200;
-    map_scale = (scale == 25 || scale == 50) ? scale : 35;
+    scale = (scale == 25 || scale == 50) ? scale : 35;
+    if (map_scale != scale) map_valid = 0;
+    map_scale = scale;
     shoulder_action[0] = (l_action >= DSI_L_CONTROLLER && l_action <= DSI_L_HEALTH_POTION) ? l_action : DSI_L_RIGHT_MOUSE;
     shoulder_action[1] = (r_action >= DSI_L_CONTROLLER && r_action <= DSI_L_HEALTH_POTION) ? r_action : DSI_L_HEALTH_POTION;
 }
@@ -52,6 +120,11 @@ void DsiSetTopView(enum DsiTopView view)
     if (movie_active && view != DSI_TOP_MOVIE) { movie_restore_view = view; return; }
     if (top_view == view) return;
     top_view = view;
+    map_valid = 0;
+    map_pending = 1;
+    if (view != DSI_TOP_MAP) {
+        perf_active = perf_frames = 0;
+    }
     focus_x = focus_y = -1;
     manual_reading = 0;
     if (view == DSI_TOP_MENU) { reading_x = 320; reading_y = 240; }
@@ -171,14 +244,20 @@ static void update(SDL_VideoDevice *_this, int count, SDL_Rect *rects)
 {
     SDL_Surface *surface = _this->screen;
     if (!surface || !surface->pixels) return;
+    u64 started = DsiPerfClock();
     dsi_present_index8(surface->pixels, surface->w, surface->h, surface->pitch,
         bgGetGfxPtr(_this->hidden->bg), 128);
+    DsiPerfRecord(DSI_PERF_BOTTOM, started);
+    started = DsiPerfClock();
     if (top_view == DSI_TOP_MENU)
         dsi_present_reading_index8(surface->pixels, surface->w, surface->h,
             surface->pitch, reading_x, reading_y, reading_percent, bgGetGfxPtr(top_bg), 128);
-    else if (top_view == DSI_TOP_MAP)
+    else if (top_view == DSI_TOP_MAP && map_pending) {
         dsi_present_index8(map_pixels, DSI_WIDTH, DSI_HEIGHT, DSI_WIDTH,
             bgGetGfxPtr(top_bg), 128);
+        map_pending = 0;
+    }
+    DsiPerfRecord(DSI_PERF_TOP, started);
 }
 static int set_colors(SDL_VideoDevice *_this, int first, int count, SDL_Color *colors)
 {

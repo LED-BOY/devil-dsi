@@ -1,18 +1,30 @@
 {
-  "status": "R6 test3: bounded post-save timeout and default R healing potion; hardware untested",
+  "status": "R6 test4: map pacing, cached scaling, native map copy and optional performance overlay; hardware untested",
   "source_repository": "https://github.com/LED-BOY/devil-dsi",
   "source_pull_request": "https://github.com/LED-BOY/devil-dsi/pull/1",
   "source_branch": "codex/r6-dsi-controls-video",
-  "source_base_commit": "20dbd0831550b368d72a9909aeca858317316516",
+  "source_base_commit": "c969827b26d2a1bfed620d81031097d1a93567f9",
   "source_modified_for_build": true,
-  "version_suffix": "-DSi-R6-test3",
+  "version_suffix": "-DSi-R6-test4",
   "cross_build": "passed: native Windows CMake/Ninja and devkitARM GCC 16.1.0",
   "host_test": "passed: actual SDL core/DSi driver, R3-R6 regressions",
   "hardware_tested": false,
   "emulator_tested": false,
   "potion_fix_hardware_confirmed": false,
-  "rom_bytes": 2279424,
-  "rom_sha256": "09f5c26e522eead92a244074a98ae8c2f23004252645583f327778e0b9264970",
+  "performance_hardware_measured": false,
+  "top_map_refresh_hz_default": 15,
+  "top_map_refresh_hz_choices": [
+    10,
+    15,
+    0
+  ],
+  "performance_stats_default": false,
+  "internal_resolution": [
+    640,
+    480
+  ],
+  "rom_bytes": 2281472,
+  "rom_sha256": "0baca5ca223847b1b66b68037166555e904726bf31625ba9bc9e60e6ee22396f",
   "rom_unit_code": 2,
   "header_crc16": "verified",
   "rom_segments": {
@@ -20,31 +32,31 @@
       "offset": 16384,
       "entry": "0x2004800",
       "ram": "0x2004000",
-      "bytes": 2182212
+      "bytes": 2184356
     },
     "arm7": {
-      "offset": 2199040,
+      "offset": 2201088,
       "entry": "0x2380000",
       "ram": "0x2380000",
       "bytes": 45940
     },
     "arm9i": {
-      "offset": 2248704,
+      "offset": 2250752,
       "entry": "0x0",
       "ram": "0x2400000",
       "bytes": 12
     },
     "arm7i": {
-      "offset": 2249216,
+      "offset": 2251264,
       "entry": "0x3807558",
       "ram": "0x2e80000",
       "bytes": 30004
     }
   },
   "arm9_elf": {
-    "text": 2164644,
-    "data": 17580,
-    "bss": 706932
+    "text": 2166780,
+    "data": 17588,
+    "bss": 710756
   },
   "sound": true,
   "music": false,
@@ -53,5 +65,5 @@
   "sfx_input_limit_bytes": 131072,
   "sfx_decoded_sample_limit_bytes": 262144,
   "networking": false,
-  "implementation_notes": "Single-engine-thread WAV effects via Calico ARM7 PCM channels, 1 MiB cache. Music/movie audio/long clips unsupported. Message removal and audible playback need hardware confirmation."
+  "implementation_notes": "Default 15 Hz top-map render/copy scheduler; cached overview/reader coordinate tables; native map copy; optional gameplay timing overlay, no per-frame SD logging. Prior save/R-potion/SFX fixes retained. Hardware performance unmeasured."
 }

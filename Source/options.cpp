@@ -240,6 +240,9 @@ void ApplyDsiOptions()
 		if (*options.rButton == DSI_L_CONTROLLER) options.rButton.SetValue(DSI_L_HEALTH_POTION);
 	}
 	DsiConfigureOptions(*options.menuZoom, *options.mapScale, *options.lButton, *options.rButton);
+	if (*options.mapRefresh != 0 && *options.mapRefresh != 10 && *options.mapRefresh != 15)
+		options.mapRefresh.SetValue(15);
+	DsiConfigurePerformance(*options.mapRefresh, *options.performanceStats);
 	DsiAudioSetEnabled(*options.soundEffects);
 }
 } // namespace
@@ -254,11 +257,16 @@ DsiOptions::DsiOptions()
           { { DSI_L_RIGHT_MOUSE, N_("Right Mouse Button") }, { DSI_L_HEALTH_POTION, N_("Use Health Potion") }, { DSI_L_CONTROLLER, N_("Controller Shoulder") }, { DSI_L_DISABLED, N_("Disabled") } })
     , rButton("R Button", OptionEntryFlags::None, N_("R Button Action"), N_("Use R for a health potion (default), right-click, the original controller shoulder, or disable it. L+R still pans the menu reader."), DSI_L_HEALTH_POTION,
           { { DSI_L_HEALTH_POTION, N_("Use Health Potion") }, { DSI_L_RIGHT_MOUSE, N_("Right Mouse Button") }, { DSI_L_CONTROLLER, N_("Controller Shoulder") }, { DSI_L_DISABLED, N_("Disabled") } })
+    , mapRefresh("Map Refresh", OptionEntryFlags::None, N_("Top Map Refresh"), N_("Lower refresh rates reduce top-map drawing and copying without limiting gameplay FPS."), 15,
+          { { 10, "10 Hz" }, { 15, "15 Hz" }, { 0, N_("Every Frame") } })
+    , performanceStats("Performance Stats", OptionEntryFlags::None, N_("Performance Stats"), N_("Show gameplay FPS and average drawing/copy times on the top map. No per-frame SD logging."), false)
     , soundEffects("Sound Effects", OptionEntryFlags::None, N_("Sound Effects"), N_("Experimental DSi hardware sound effects. Music and movie audio are not supported. Turn off to reduce memory and CPU use."), true)
     , shoulderDefaultsVersion("Shoulder Defaults Version", OptionEntryFlags::Invisible, "Shoulder Defaults Version", "DSi shoulder default migration version.", 0, { 0, 1 })
 {
 	menuZoom.SetValueChangedCallback(ApplyDsiOptions);
 	mapScale.SetValueChangedCallback(ApplyDsiOptions);
+	mapRefresh.SetValueChangedCallback(ApplyDsiOptions);
+	performanceStats.SetValueChangedCallback(ApplyDsiOptions);
 	lButton.SetValueChangedCallback(ApplyDsiOptions);
 	rButton.SetValueChangedCallback(ApplyDsiOptions);
 	soundEffects.SetValueChangedCallback(ApplyDsiOptions);
@@ -266,7 +274,7 @@ DsiOptions::DsiOptions()
 
 std::vector<OptionEntryBase *> DsiOptions::GetEntries()
 {
-	return { &menuZoom, &mapScale, &lButton, &rButton, &soundEffects, &shoulderDefaultsVersion };
+	return { &menuZoom, &mapScale, &mapRefresh, &performanceStats, &lButton, &rButton, &soundEffects, &shoulderDefaultsVersion };
 }
 #endif
 

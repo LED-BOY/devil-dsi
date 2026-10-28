@@ -9,6 +9,7 @@
 #include "r6_test.h"
 #include "audio_test.h"
 #include "potion_test.h"
+#include "performance_test.h"
 
 volatile uint16_t host_palette[256], host_vram[32768];
 volatile uint16_t host_sub_palette[256], host_sub_vram[32768];
@@ -200,6 +201,8 @@ int main(void)
         || dsi_present_reading_index8(tiny, 1, 1, 4, 0, 0, 250, host_sub_vram, 127)) {
         puts("FAIL: invalid reading arguments accepted"); return 1;
     }
+    if (!CheckScaleCache()) { puts("FAIL: scale cache"); return 1; }
+    if (!CheckPerformance(screen)) { puts("FAIL: performance regression"); return 1; }
     if (!CheckR5Settings(screen)) return 1;
     if (!CheckR6(screen)) { puts("FAIL: R6 regression"); return 1; }
     if (!CheckPotionAction()) { puts("FAIL: potion input regression"); return 1; }

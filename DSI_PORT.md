@@ -1,5 +1,28 @@
 # Experimental Nintendo DSi engine integration
 
+
+## R6 test4: map pacing, display copies and measurements
+
+The top map renders/copies at 15 Hz by default, with 10 Hz and Every Frame
+options in Nintendo DSi settings. Bottom presentation continues independently.
+Scale changes, loading/movie/menu restoration and live configuration invalidate
+the map. Millisecond rollover is covered by scheduler tests.
+
+Optional Performance Stats uses Calico ticks to average engine drawing, map
+drawing and bottom/top presentation per gameplay frame, plus wall-clock FPS.
+The native-resolution overlay is on the map only; off by default, with no
+per-frame SD logging. Skipped map frames contribute zero cost. Display totals
+exclude uninstrumented game logic and intentional frame waiting.
+
+Separate cached overview/reader tables remove repeated coordinate division.
+A native 256x192 copy avoids scale gathers, preserving paired VRAM writes and
+support for unaligned/padded sources. Pixel comparisons cover mode changes,
+alternating reader/overview calls, odd sizes, destination guards and all pixels.
+
+Hardware profiling is still required before promising an FPS increase or
+changing internal resolution, placing renderer code in ITCM, or adding an SD
+cache. This build preserves the tested 640x480 layout and existing audio cache.
+
 ## R6 test3: slow-save timeout and default R healing potion
 
 The saved-message persistence had a second cause in `gamemenu_save_game`:

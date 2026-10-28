@@ -33,3 +33,17 @@ Additional R6 test2 hardware checks:
 - [ ] Check menu clicks, footsteps, combat and short voice effects; test panning, the in-game SFX volume and Sound Effects toggle. Capture the startup log if silent or unstable. Music/movie audio and long clips remain unsupported.
 
 R6 test3: the slow-save duration underflow is reproduced and fixed in a host harness executing the actual save function. Verify the 1.5-second post-save notice on DSi. Verify default R uses one belt healing potion per press and that right-click/disabled/custom choices persist.
+
+
+R6 test4 performance checks (hardware pending):
+
+- [ ] Compare 10 Hz, 15 Hz and Every Frame in the same town/dungeon scene with
+  movement and combat; confirm only the top map cadence changes.
+- [ ] Enable Performance Stats and record FPS/Draw/Map/Copy B/T after two seconds.
+  Repeat with sound effects off to isolate audio cost. Disable the overlay for
+  normal play; it adds some measurement/drawing overhead.
+- [ ] Check zoom changes, menu return, movies, loading, save/reload and map scale
+  changes refresh the map immediately with no stale content.
+- [ ] Use measured stage costs to choose the next optimization: renderer hot
+  code/ITCM, a separately tested lower-resolution layout, or SD asset caching.
+  Do not claim speed gains from host tests or allocate Wi-Fi RAM as game RAM.
