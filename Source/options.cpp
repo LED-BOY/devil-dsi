@@ -6,6 +6,7 @@
 #include "options.h"
 #ifdef __DSI__
 #include "platform/dsi/dsi_video.h"
+#include "platform/dsi/dsi_audio.h"
 #endif
 
 #include <algorithm>
@@ -230,29 +231,53 @@ void ApplyDsiOptions()
 		options.menuZoom.SetValue(200);
 	if (*options.mapScale != 25 && *options.mapScale != 35 && *options.mapScale != 50)
 		options.mapScale.SetValue(35);
-	if (*options.lButton < DSI_L_CONTROLLER || *options.lButton > DSI_L_DISABLED)
+	if (*options.lButton < DSI_L_CONTROLLER || *options.lButton > DSI_L_HEALTH_POTION)
 		options.lButton.SetValue(DSI_L_RIGHT_MOUSE);
-	DsiConfigureOptions(*options.menuZoom, *options.mapScale, *options.lButton);
+	if (*options.rButton < DSI_L_CONTROLLER || *options.rButton > DSI_L_HEALTH_POTION)
+		options.rButton.SetValue(DSI_L_HEALTH_POTION);
+	if (*options.shoulderDefaultsVersion < 1) {
+		options.shoulderDefaultsVersion.SetValue(1);
+		if (*options.rButton == DSI_L_CONTROLLER) options.rButton.SetValue(DSI_L_HEALTH_POTION);
+	}
+	DsiConfigureOptions(*options.menuZoom, *options.mapScale, *options.lButton, *options.rButton);
+	if (*options.mapRefresh != 0 && *options.mapRefresh != 10 && *options.mapRefresh != 15)
+		options.mapRefresh.SetValue(15);
+	DsiConfigurePerformance(*options.mapRefresh, *options.performanceStats);
+	DsiConfigureMap(*options.topMap);
+	DsiAudioSetEnabled(*options.soundEffects);
 }
 } // namespace
 
 DsiOptions::DsiOptions()
-    : OptionCategoryBase("Nintendo DSi", N_("Nintendo DSi"), N_("Top-screen reading zoom, gameplay map, and L button."))
+    : OptionCategoryBase("Nintendo DSi", N_("Nintendo DSi"), N_("Top-screen reading zoom, gameplay map, and shoulder buttons."))
     , menuZoom("Menu Zoom", OptionEntryFlags::None, N_("Menu Reading Zoom"), N_("Top-screen menu magnification relative to the bottom overview. Hold L+R to pan with the D-pad or touch."), 200,
           { { 150, "1.5x" }, { 200, "2x" }, { 250, "2.5x" } })
     , mapScale("Map Scale", OptionEntryFlags::None, N_("Top Map Zoom"), N_("Smaller percentages show more of the explored map on the top screen during gameplay."), 35,
           { { 25, N_("Far (25%)") }, { 35, N_("Wide (35%)") }, { 50, N_("Close (50%)") } })
-    , lButton("L Button", OptionEntryFlags::None, N_("L Button Action"), N_("Use L as right mouse button at the pointer, the original controller shoulder, or disable it. L+R still pans the menu reader."), DSI_L_RIGHT_MOUSE,
-          { { DSI_L_RIGHT_MOUSE, N_("Right Mouse Button") }, { DSI_L_CONTROLLER, N_("Controller Shoulder") }, { DSI_L_DISABLED, N_("Disabled") } })
+    , lButton("L Button", OptionEntryFlags::None, N_("L Button Action"), N_("Use L for right-click, a health potion, the original controller shoulder, or disable it. L+R still pans the menu reader."), DSI_L_RIGHT_MOUSE,
+          { { DSI_L_RIGHT_MOUSE, N_("Right Mouse Button") }, { DSI_L_HEALTH_POTION, N_("Use Health Potion") }, { DSI_L_CONTROLLER, N_("Controller Shoulder") }, { DSI_L_DISABLED, N_("Disabled") } })
+    , rButton("R Button", OptionEntryFlags::None, N_("R Button Action"), N_("Use R for a health potion (default), right-click, the original controller shoulder, or disable it. L+R still pans the menu reader."), DSI_L_HEALTH_POTION,
+          { { DSI_L_HEALTH_POTION, N_("Use Health Potion") }, { DSI_L_RIGHT_MOUSE, N_("Right Mouse Button") }, { DSI_L_CONTROLLER, N_("Controller Shoulder") }, { DSI_L_DISABLED, N_("Disabled") } })
+    , mapRefresh("Map Refresh", OptionEntryFlags::None, N_("Top Map Refresh"), N_("Lower refresh rates reduce top-map drawing and copying without limiting gameplay FPS."), 15,
+          { { 10, "10 Hz" }, { 15, "15 Hz" }, { 0, N_("Every Frame") } })
+    , performanceStats("Performance Stats", OptionEntryFlags::None, N_("Performance Stats"), N_("Show gameplay FPS and average drawing/copy times on the top map. No per-frame SD logging."), false)
+    , topMap("Top Map", OptionEntryFlags::None, N_("Top Map"), N_("Show the gameplay map. Off skips map drawing and copying; menu reading zoom is kept. Performance Stats can still show on black."), true)
+    , soundEffects("Sound Effects", OptionEntryFlags::None, N_("Sound Effects"), N_("Experimental DSi hardware sound effects. Music and movie audio are not supported. Turn off to reduce memory and CPU use."), true)
+    , shoulderDefaultsVersion("Shoulder Defaults Version", OptionEntryFlags::Invisible, "Shoulder Defaults Version", "DSi shoulder default migration version.", 0, { 0, 1 })
 {
 	menuZoom.SetValueChangedCallback(ApplyDsiOptions);
 	mapScale.SetValueChangedCallback(ApplyDsiOptions);
+	mapRefresh.SetValueChangedCallback(ApplyDsiOptions);
+	performanceStats.SetValueChangedCallback(ApplyDsiOptions);
+	topMap.SetValueChangedCallback(ApplyDsiOptions);
 	lButton.SetValueChangedCallback(ApplyDsiOptions);
+	rButton.SetValueChangedCallback(ApplyDsiOptions);
+	soundEffects.SetValueChangedCallback(ApplyDsiOptions);
 }
 
 std::vector<OptionEntryBase *> DsiOptions::GetEntries()
 {
-	return { &menuZoom, &mapScale, &lButton };
+	return { &topMap, &menuZoom, &mapScale, &mapRefresh, &performanceStats, &lButton, &rButton, &soundEffects, &shoulderDefaultsVersion };
 }
 #endif
 
@@ -566,6 +591,9 @@ AudioOptions::AudioOptions()
 }
 std::vector<OptionEntryBase *> AudioOptions::GetEntries()
 {
+#ifdef __DSI__
+	return { &soundVolume, &audioCuesVolume, &walkingSound, &autoEquipSound, &itemPickupSound };
+#else
 	// clang-format off
 	return {
 		&soundVolume,
@@ -584,6 +612,7 @@ std::vector<OptionEntryBase *> AudioOptions::GetEntries()
 #endif
 	};
 	// clang-format on
+#endif
 }
 
 OptionEntryResolution::OptionEntryResolution()

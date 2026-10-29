@@ -892,6 +892,12 @@ struct DsiOptions : OptionCategoryBase {
 	OptionEntryEnum<int> menuZoom;
 	OptionEntryEnum<int> mapScale;
 	OptionEntryEnum<int> lButton;
+	OptionEntryEnum<int> rButton;
+	OptionEntryEnum<int> mapRefresh;
+	OptionEntryBoolean performanceStats;
+	OptionEntryBoolean topMap;
+	OptionEntryBoolean soundEffects;
+	OptionEntryInt<int> shoulderDefaultsVersion;
 };
 #endif
 

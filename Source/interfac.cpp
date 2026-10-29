@@ -11,6 +11,7 @@
 #include <utility>
 #ifdef __DSI__
 #include "platform/dsi/dsi_trace.h"
+#include "platform/dsi/dsi_video.h"
 #endif
 
 #ifdef USE_SDL3
@@ -651,6 +652,10 @@ void ShowProgress(interface_mode uMsg)
 {
 #ifdef __DSI__
 	DsiTrace("ShowProgress mode=%d", static_cast<int>(uMsg));
+	DsiSetLoading(1);
+	struct DsiLoadingGuard {
+		~DsiLoadingGuard() { DsiSetLoading(0); }
+	} dsiLoadingGuard;
 #endif
 	IsProgress = true;
 	gbSomebodyWonGameKludge = false;

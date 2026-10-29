@@ -6,6 +6,10 @@
 
 #include <cstdint>
 
+#ifdef __DSI__
+#include "platform/dsi/dsi_video.h"
+#endif
+
 #ifdef USE_SDL3
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_keycode.h>
@@ -45,6 +49,9 @@ void play_movie(const char *pszMovie, bool userCanClose)
 		return;
 
 	movie_playing = true;
+#ifdef __DSI__
+	DsiSetMoviePlaying(1);
+#endif
 
 	sound_disable_music(true);
 	stream_stop();
@@ -114,6 +121,9 @@ void play_movie(const char *pszMovie, bool userCanClose)
 	sound_disable_music(false);
 
 	movie_playing = false;
+#ifdef __DSI__
+	DsiSetMoviePlaying(0);
+#endif
 
 #ifdef USE_SDL3
 	float x, y;

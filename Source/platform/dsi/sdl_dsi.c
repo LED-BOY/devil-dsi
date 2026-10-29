@@ -18,13 +18,111 @@ static uint8_t map_pixels[DSI_WIDTH * DSI_HEIGHT];
 static int reading_x = 320, reading_y = 240, focus_x = -1, focus_y = -1;
 static int manual_reading;
 static Uint32 next_pan;
-static int reading_percent = 200, map_scale = 35, l_action = DSI_L_RIGHT_MOUSE;
+static int reading_percent = 200, map_scale = 35;
+static int shoulder_action[2] = { DSI_L_RIGHT_MOUSE, DSI_L_HEALTH_POTION };
+static int movie_active;
+static enum DsiTopView movie_restore_view;
+static int loading_depth;
+static enum DsiTopView loading_restore_view;
+static int map_hz = 15, map_valid, map_pending = 1;
+static int map_enabled = 1;
+static void refresh_top_display(void);
 
-void DsiConfigureOptions(int zoom, int scale, int action)
+void DsiConfigureMap(int enabled)
+{
+    if (map_enabled == !!enabled) return;
+    map_enabled = !!enabled;
+    map_valid = 0;
+    map_pending = 0;
+    refresh_top_display();
+}
+int DsiTopMapEnabled(void) { return map_enabled; }
+static Uint32 map_updated;
+static int perf_enabled, perf_active;
+static u64 perf_window;
+static unsigned perf_frames;
+static u64 perf_current[DSI_PERF_COUNT], perf_total[DSI_PERF_COUNT];
+static struct DsiPerfStats perf_stats;
+
+void DsiConfigurePerformance(int hz, int show_stats)
+{
+    hz = (hz == 0 || hz == 10) ? hz : 15;
+    if (map_hz != hz || perf_enabled != !!show_stats) map_valid = 0;
+    map_hz = hz;
+    if (perf_enabled == !!show_stats) return;
+    perf_enabled = !!show_stats;
+    perf_active = perf_frames = 0;
+    SDL_memset(perf_total, 0, sizeof(perf_total));
+    SDL_memset(&perf_stats, 0, sizeof(perf_stats));
+    refresh_top_display();
+}
+
+int DsiMapNeedsRedraw(void)
+{
+    return top_view == DSI_TOP_MAP && !loading_depth && !movie_active
+        && (map_enabled || perf_enabled)
+        && (!map_valid || (map_enabled && !map_hz)
+            || (Uint32)(SDL_GetTicks() - map_updated) >= (map_enabled ? (1000u + map_hz - 1) / map_hz : 500));
+}
+
+void DsiMapReady(void)
+{
+    map_updated = SDL_GetTicks();
+    map_valid = map_pending = 1;
+}
+
+int DsiPerfEnabled(void) { return perf_enabled; }
+uint64_t DsiPerfClock(void) { return perf_enabled ? tickGetCount() : 0; }
+void DsiPerfBeginFrame(void)
+{
+    if (!perf_enabled) return;
+    u64 now = tickGetCount();
+    /* Do not average a menu/loading gap into gameplay FPS. */
+    if (!perf_frames || now - perf_window > 2 * TICK_FREQ) {
+        perf_window = now;
+        perf_frames = 0;
+        SDL_memset(perf_total, 0, sizeof(perf_total));
+    }
+    SDL_memset(perf_current, 0, sizeof(perf_current));
+    perf_active = 1;
+}
+void DsiPerfRecord(enum DsiPerfStage stage, uint64_t start)
+{
+    if (perf_enabled && perf_active && stage >= 0 && stage < DSI_PERF_COUNT)
+        perf_current[stage] += tickGetCount() - start;
+}
+void DsiPerfEndFrame(void)
+{
+    if (!perf_enabled || !perf_active) return;
+    perf_active = 0;
+    ++perf_frames;
+    for (int i = 0; i < DSI_PERF_COUNT; ++i) perf_total[i] += perf_current[i];
+    u64 elapsed = tickGetCount() - perf_window;
+    if (elapsed < TICK_FREQ / 2) return;
+    perf_stats.fps10 = (unsigned)((u64)perf_frames * 10 * TICK_FREQ / elapsed);
+    for (int i = 0; i < DSI_PERF_COUNT; ++i)
+        perf_stats.microseconds[i] = (unsigned)(perf_total[i] * 1000000 / TICK_FREQ / perf_frames);
+    perf_frames = 0;
+}
+void DsiPerfGetStats(struct DsiPerfStats *stats) { if (stats) *stats = perf_stats; }
+
+void DsiConfigureOptions(int zoom, int scale, int l_action, int r_action)
 {
     reading_percent = (zoom == 150 || zoom == 250) ? zoom : 200;
-    map_scale = (scale == 25 || scale == 50) ? scale : 35;
-    l_action = (action >= DSI_L_CONTROLLER && action <= DSI_L_DISABLED) ? action : DSI_L_RIGHT_MOUSE;
+    scale = (scale == 25 || scale == 50) ? scale : 35;
+    if (map_scale != scale) map_valid = 0;
+    map_scale = scale;
+    shoulder_action[0] = (l_action >= DSI_L_CONTROLLER && l_action <= DSI_L_HEALTH_POTION) ? l_action : DSI_L_RIGHT_MOUSE;
+    shoulder_action[1] = (r_action >= DSI_L_CONTROLLER && r_action <= DSI_L_HEALTH_POTION) ? r_action : DSI_L_HEALTH_POTION;
+}
+
+static void post_health_potion(void)
+{
+    if (top_view != DSI_TOP_MENU && top_view != DSI_TOP_MAP) return;
+    SDL_Event event;
+    SDL_memset(&event, 0, sizeof(event));
+    event.type = DSI_EVENT_HEALTH_POTION;
+    SDL_PushEvent(&event);
 }
 
 int DsiTopMapScale(void) { return map_scale; }
@@ -33,20 +131,73 @@ uint8_t *DsiMapBuffer(void) { return map_pixels; }
 
 void DsiSetTopView(enum DsiTopView view)
 {
+    if (loading_depth && view != DSI_TOP_MOVIE) { loading_restore_view = view; return; }
+    if (movie_active && view != DSI_TOP_MOVIE) { movie_restore_view = view; return; }
     if (top_view == view) return;
     top_view = view;
+    map_valid = 0;
+    map_pending = 1;
+    if (view != DSI_TOP_MAP) {
+        perf_active = perf_frames = 0;
+    }
     focus_x = focus_y = -1;
     manual_reading = 0;
     if (view == DSI_TOP_MENU) { reading_x = 320; reading_y = 240; }
+    refresh_top_display();
+}
+
+static int top_is_black(void)
+{
+    return top_view == DSI_TOP_MOVIE
+        || (top_view == DSI_TOP_MAP && !map_enabled && !perf_enabled);
+}
+
+static void refresh_top_display(void)
+{
     if (top_bg < 0) return;
-    if (view == DSI_TOP_DIAGNOSTICS) {
+    if (top_view == DSI_TOP_DIAGNOSTICS) {
         bgHide(top_bg);
         for (int i = 0; i < 256; ++i) BG_PALETTE_SUB[i] = console_palette[i];
         bgShow(4); /* consoleDemoInit's sub BG0 */
+    } else if (top_is_black()) {
+        bgHide(4);
+        bgHide(top_bg);
+        BG_PALETTE_SUB[0] = 0; /* Black backdrop, independent of movie palette. */
     } else {
         bgHide(4);
         for (int i = 0; i < 256; ++i) BG_PALETTE_SUB[i] = game_palette[i];
+        if (top_view == DSI_TOP_MAP && !map_enabled) BG_PALETTE_SUB[0] = 0;
         bgShow(top_bg);
+    }
+}
+
+void DsiSetLoading(int loading)
+{
+    if (loading) {
+        if (loading_depth++ != 0) return;
+        loading_restore_view = top_view;
+        DsiSetTopView(DSI_TOP_MOVIE);
+    } else if (loading_depth && --loading_depth == 0) {
+        DsiSetTopView(loading_restore_view);
+    }
+}
+
+void DsiRestoreDiagnostics(void)
+{
+    loading_depth = movie_active = 0;
+    DsiSetTopView(DSI_TOP_DIAGNOSTICS);
+}
+
+void DsiSetMoviePlaying(int playing)
+{
+    if (!!playing == movie_active) return;
+    if (playing) {
+        movie_restore_view = top_view;
+        movie_active = 1;
+        DsiSetTopView(DSI_TOP_MOVIE);
+    } else {
+        movie_active = 0;
+        DsiSetTopView(movie_restore_view);
     }
 }
 
@@ -120,14 +271,20 @@ static void update(SDL_VideoDevice *_this, int count, SDL_Rect *rects)
 {
     SDL_Surface *surface = _this->screen;
     if (!surface || !surface->pixels) return;
+    u64 started = DsiPerfClock();
     dsi_present_index8(surface->pixels, surface->w, surface->h, surface->pitch,
         bgGetGfxPtr(_this->hidden->bg), 128);
+    DsiPerfRecord(DSI_PERF_BOTTOM, started);
+    started = DsiPerfClock();
     if (top_view == DSI_TOP_MENU)
         dsi_present_reading_index8(surface->pixels, surface->w, surface->h,
             surface->pitch, reading_x, reading_y, reading_percent, bgGetGfxPtr(top_bg), 128);
-    else if (top_view == DSI_TOP_MAP)
+    else if (top_view == DSI_TOP_MAP && map_pending && (map_enabled || perf_enabled)) {
         dsi_present_index8(map_pixels, DSI_WIDTH, DSI_HEIGHT, DSI_WIDTH,
             bgGetGfxPtr(top_bg), 128);
+        map_pending = 0;
+    }
+    DsiPerfRecord(DSI_PERF_TOP, started);
 }
 static int set_colors(SDL_VideoDevice *_this, int first, int count, SDL_Color *colors)
 {
@@ -136,7 +293,8 @@ static int set_colors(SDL_VideoDevice *_this, int first, int count, SDL_Color *c
     for (int i = 0; i < count && first + i < 256; ++i) {
         uint16_t color = dsi_palette_color(colors[i].r, colors[i].g, colors[i].b);
         game_palette[first + i] = BG_PALETTE[first + i] = color;
-        if (top_view != DSI_TOP_DIAGNOSTICS) BG_PALETTE_SUB[first + i] = color;
+        if (top_view != DSI_TOP_DIAGNOSTICS && !top_is_black())
+            BG_PALETTE_SUB[first + i] = top_view == DSI_TOP_MAP && !map_enabled && first + i == 0 ? 0 : color;
     }
     static unsigned updates;
     if (count && updates++ < 4)
@@ -146,6 +304,8 @@ static int set_colors(SDL_VideoDevice *_this, int first, int count, SDL_Color *c
 }
 static void video_quit(SDL_VideoDevice *_this)
 {
+    loading_depth = 0;
+    movie_active = 0;
     DsiSetTopView(DSI_TOP_DIAGNOSTICS);
     SDL_free(_this->hidden->pixels); _this->hidden->pixels = NULL;
     if (_this->screen) _this->screen->pixels = NULL;
@@ -161,12 +321,13 @@ static void pump_events(SDL_VideoDevice *_this)
      * modifier keys here: SDL treats those as global keyboard modifiers. */
     static const SDLKey keys[12] = { SDLK_F2, SDLK_F1, SDLK_F7, SDLK_F8,
         SDLK_RIGHT, SDLK_LEFT, SDLK_UP, SDLK_DOWN, SDLK_F6, SDLK_F5, SDLK_F4, SDLK_F3 };
-    static int touched;
+    static int touched, pointer_only_touch;
     static int mouse_x, mouse_y;
     static unsigned logged_buttons;
     static u32 delivered_keys, blocked_keys;
-    static int active_l_action, l_mouse_down, l_pending;
-    static Uint32 l_press_time;
+    static const u32 shoulder_bits[2] = { KEY_L, KEY_R };
+    static int active_action[2], pending[2], mouse_down[2];
+    static Uint32 press_time[2];
     scanKeys();
     u32 held = keysHeld();
     const int reading_control = top_view == DSI_TOP_MENU
@@ -194,13 +355,20 @@ static void pump_events(SDL_VideoDevice *_this)
         if (reading_y < 0) reading_y = 0;
         if (reading_y > _this->screen->h) reading_y = _this->screen->h;
     }
+    /* Release the latched action on a live remap, then wait for physical up.
+     * Do not reinterpret a held shoulder as a fresh press of its new action. */
+    for (int i = 0; i < 2; ++i)
+        if ((delivered_keys & shoulder_bits[i]) && active_action[i] != shoulder_action[i])
+            blocked_keys |= held & shoulder_bits[i];
     u32 effective_keys = held & ~blocked_keys;
     u32 down = effective_keys & ~delivered_keys, up = delivered_keys & ~effective_keys;
     delivered_keys = effective_keys;
-    if (down & KEY_L) active_l_action = l_action; /* latch through release, even if options change */
+    for (int i = 0; i < 2; ++i)
+        if (down & shoulder_bits[i]) active_action[i] = shoulder_action[i];
     if (down & 0xfff) { manual_reading = 0; focus_x = focus_y = -1; }
     for (int i = 0; i < 12; ++i) {
-        if (i == 9 && active_l_action != DSI_L_CONTROLLER) continue;
+        if (i == 9 && active_action[0] != DSI_L_CONTROLLER) continue;
+        if (i == 8 && active_action[1] != DSI_L_CONTROLLER) continue;
         SDL_keysym sym = { .scancode = i, .sym = keys[i], .mod = KMOD_NONE, .unicode = 0 };
         if (down & (1u << i)) {
             int posted = SDL_PrivateKeyboard(SDL_PRESSED, &sym);
@@ -217,8 +385,12 @@ static void pump_events(SDL_VideoDevice *_this)
         mouse_y = dsi_source_coordinate(touch.py, 192, _this->screen->h);
         SDL_PrivateMouseMotion(0, 0, mouse_x, mouse_y);
     }
-    const int left_touch = _this->screen && (effective_keys & KEY_TOUCH)
-        && !((effective_keys & KEY_L) && active_l_action == DSI_L_RIGHT_MOUSE);
+    if (!(held & KEY_TOUCH)) pointer_only_touch = 0;
+    if ((held & KEY_TOUCH) && (reading_control
+            || ((effective_keys & KEY_L) && active_action[0] == DSI_L_RIGHT_MOUSE)
+            || ((effective_keys & KEY_R) && active_action[1] == DSI_L_RIGHT_MOUSE)))
+        pointer_only_touch = 1;
+    const int left_touch = _this->screen && (effective_keys & KEY_TOUCH) && !pointer_only_touch;
     if (left_touch && !touched) {
         SDL_PrivateMouseButton(SDL_PRESSED, SDL_BUTTON_LEFT, mouse_x, mouse_y);
         touched = 1;
@@ -226,28 +398,36 @@ static void pump_events(SDL_VideoDevice *_this)
         SDL_PrivateMouseButton(SDL_RELEASED, SDL_BUTTON_LEFT, mouse_x, mouse_y);
         touched = 0;
     }
-    /* Use SDL's pointer state, including game/controller cursor warps. In menus,
-     * allow 120 ms to complete L+R before emitting right-click. A quick L tap
-     * still clicks on release; the reading chord cancels the pending click. */
+    /* Both shoulders share one SDL mouse button. Keep it down until the last
+     * owner releases; menu taps wait briefly so L+R can cancel the click. */
     SDL_GetMouseState(&mouse_x, &mouse_y);
-    if ((down & KEY_L) && active_l_action == DSI_L_RIGHT_MOUSE) {
-        l_pending = 1;
-        l_press_time = SDL_GetTicks();
+    int was_down = mouse_down[0] || mouse_down[1], tap = 0;
+    for (int i = 0; i < 2; ++i) {
+        u32 bit = shoulder_bits[i];
+        if ((down & bit) && (active_action[i] == DSI_L_RIGHT_MOUSE || active_action[i] == DSI_L_HEALTH_POTION)) {
+            pending[i] = 1;
+            press_time[i] = SDL_GetTicks();
+        }
+        if (up & bit) {
+            if (pending[i] && !(blocked_keys & bit)) {
+                if (active_action[i] == DSI_L_RIGHT_MOUSE) tap = 1;
+                else if (active_action[i] == DSI_L_HEALTH_POTION) post_health_potion();
+            }
+            pending[i] = mouse_down[i] = 0;
+        }
+        if (reading_control) pending[i] = 0;
+        if (pending[i] && (effective_keys & bit)
+            && (top_view != DSI_TOP_MENU || SDL_GetTicks() - press_time[i] >= 120)) {
+            if (active_action[i] == DSI_L_RIGHT_MOUSE) mouse_down[i] = 1;
+            else if (active_action[i] == DSI_L_HEALTH_POTION) post_health_potion();
+            pending[i] = 0;
+        }
     }
-    if ((up & KEY_L) && active_l_action == DSI_L_RIGHT_MOUSE) {
-        if (l_pending && !(blocked_keys & KEY_L))
-            SDL_PrivateMouseButton(SDL_PRESSED, SDL_BUTTON_RIGHT, mouse_x, mouse_y);
-        if (l_mouse_down || (l_pending && !(blocked_keys & KEY_L)))
-            SDL_PrivateMouseButton(SDL_RELEASED, SDL_BUTTON_RIGHT, mouse_x, mouse_y);
-        l_pending = l_mouse_down = 0;
-    }
-    if (reading_control) l_pending = 0;
-    if (l_pending && (effective_keys & KEY_L)
-        && (top_view != DSI_TOP_MENU || SDL_GetTicks() - l_press_time >= 120)) {
+    int is_down = mouse_down[0] || mouse_down[1];
+    if (!was_down && (is_down || tap))
         SDL_PrivateMouseButton(SDL_PRESSED, SDL_BUTTON_RIGHT, mouse_x, mouse_y);
-        l_mouse_down = 1;
-        l_pending = 0;
-    }
+    if (!is_down && (was_down || tap))
+        SDL_PrivateMouseButton(SDL_RELEASED, SDL_BUTTON_RIGHT, mouse_x, mouse_y);
     if (!pmMainLoop()) SDL_PrivateQuit();
 }
 static SDL_VideoDevice *create_device(int index)

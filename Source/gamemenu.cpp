@@ -349,10 +349,11 @@ void gamemenu_save_game(bool /*bActivate*/)
 	InitDiabloMsg(EMSG_SAVING);
 	RedrawEverything();
 	DrawAndBlit();
-	const uint32_t currentTime = SDL_GetTicks();
 	SaveGame();
 	ClrDiabloMsg();
-	InitDiabloMsg(EMSG_GAME_SAVED, currentTime + 1000 - SDL_GetTicks());
+	// SD saves can exceed one second. Subtracting that time from an unsigned
+	// timeout wraps to several billion milliseconds and keeps the notice visible.
+	InitDiabloMsg(EMSG_GAME_SAVED, 1500);
 	RedrawEverything();
 	NewCursor(CURSOR_HAND);
 	if (CornerStone.activated) {

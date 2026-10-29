@@ -1,4 +1,32 @@
 #include "dsi_video.h"
+#include "dsi_hot.h"
+
+/* Hardware VRAM permits aligned word stores as well as halfwords. may_alias
+ * lets the host pixel tests back either access width with the same allocation. */
+#if defined(__GNUC__)
+typedef uint32_t WordPixels __attribute__((may_alias));
+#else
+typedef uint32_t WordPixels;
+#endif
+
+/* Separate overview/reader caches: alternating screens must not evict each
+ * other's table. The engine calls these presenters on its single thread. */
+struct ScaleTable {
+    int width, height;
+    unsigned x[DSI_WIDTH], y[DSI_HEIGHT];
+};
+static struct ScaleTable overview_table, reading_table;
+
+static void prepare_table(struct ScaleTable *table, int width, int height)
+{
+    if (table->width == width && table->height == height) return;
+    for (int x = 0; x < DSI_WIDTH; ++x)
+        table->x[x] = (unsigned)dsi_source_coordinate(x, DSI_WIDTH, width);
+    for (int y = 0; y < DSI_HEIGHT; ++y)
+        table->y[y] = (unsigned)dsi_source_coordinate(y, DSI_HEIGHT, height);
+    table->width = width;
+    table->height = height;
+}
 
 int dsi_source_coordinate(int coordinate, int screen_extent, int source_extent)
 {
@@ -12,10 +40,9 @@ int dsi_source_coordinate(int coordinate, int screen_extent, int source_extent)
         / (unsigned)screen_extent);
 }
 
-int dsi_present_index8(const uint8_t *source, int width, int height,
+DSI_HOT int dsi_present_index8(const uint8_t *source, int width, int height,
     size_t source_pitch, volatile uint16_t *destination, size_t destination_pitch)
 {
-    unsigned x_map[DSI_WIDTH];
     int x, y;
     if (source == NULL || destination == NULL || width <= 0 || height <= 0
         || source_pitch < (size_t)width || destination_pitch < DSI_WIDTH / 2)
@@ -25,14 +52,40 @@ int dsi_present_index8(const uint8_t *source, int width, int height,
         || destination_pitch > (SIZE_MAX / sizeof(uint16_t) - DSI_WIDTH / 2)
                 / (DSI_HEIGHT - 1))
         return 0;
-    for (x = 0; x < DSI_WIDTH; ++x)
-        x_map[x] = (unsigned)dsi_source_coordinate(x, DSI_WIDTH, width);
+    /* Native top map: avoid coordinate lookup/gather for every pixel. Keep
+     * halfword VRAM stores and byte source reads (unaligned sources are valid). */
+    if (width == DSI_WIDTH && height == DSI_HEIGHT) {
+        for (y = 0; y < DSI_HEIGHT; ++y) {
+            const uint8_t *row = source + (size_t)y * source_pitch;
+            volatile uint16_t *output = destination + (size_t)y * destination_pitch;
+            if (((uintptr_t)output & 3) == 0) {
+                volatile WordPixels *words = (volatile WordPixels *)output;
+                for (x = 0; x < DSI_WIDTH; x += 4)
+                    words[x / 4] = (uint32_t)row[x] | (uint32_t)row[x + 1] << 8
+                        | (uint32_t)row[x + 2] << 16 | (uint32_t)row[x + 3] << 24;
+                continue;
+            }
+            for (x = 0; x < DSI_WIDTH; x += 2)
+                output[x / 2] = (uint16_t)(row[x] | (uint16_t)row[x + 1] << 8);
+        }
+        return 1;
+    }
+    prepare_table(&overview_table, width, height);
     for (y = 0; y < DSI_HEIGHT; ++y) {
         const uint8_t *row = source
-            + (size_t)dsi_source_coordinate(y, DSI_HEIGHT, height) * source_pitch;
+            + (size_t)overview_table.y[y] * source_pitch;
         volatile uint16_t *output = destination + (size_t)y * destination_pitch;
+        if (((uintptr_t)output & 3) == 0) {
+            volatile WordPixels *words = (volatile WordPixels *)output;
+            for (x = 0; x < DSI_WIDTH; x += 4)
+                words[x / 4] = (uint32_t)row[overview_table.x[x]]
+                    | (uint32_t)row[overview_table.x[x + 1]] << 8
+                    | (uint32_t)row[overview_table.x[x + 2]] << 16
+                    | (uint32_t)row[overview_table.x[x + 3]] << 24;
+            continue;
+        }
         for (x = 0; x < DSI_WIDTH; x += 2)
-            output[x / 2] = (uint16_t)(row[x_map[x]] | (uint16_t)row[x_map[x + 1]] << 8);
+            output[x / 2] = (uint16_t)(row[overview_table.x[x]] | (uint16_t)row[overview_table.x[x + 1]] << 8);
     }
     return 1;
 }
@@ -42,7 +95,7 @@ uint16_t dsi_palette_color(uint8_t red, uint8_t green, uint8_t blue)
     return (uint16_t)((red >> 3) | (green >> 3) << 5 | (blue >> 3) << 10);
 }
 
-int dsi_present_reading_index8(const uint8_t *source, int width, int height,
+DSI_HOT int dsi_present_reading_index8(const uint8_t *source, int width, int height,
     size_t source_pitch, int center_x, int center_y, int zoom_percent,
     volatile uint16_t *destination, size_t destination_pitch)
 {
@@ -70,14 +123,22 @@ int dsi_present_reading_index8(const uint8_t *source, int width, int height,
     if (top > height - crop_height) top = height - crop_height;
     if (left < 0) left = 0;
     if (top < 0) top = 0;
-    unsigned x_map[DSI_WIDTH];
-    for (int x = 0; x < DSI_WIDTH; ++x)
-        x_map[x] = (unsigned)(left + dsi_source_coordinate(x, DSI_WIDTH, crop_width));
+    prepare_table(&reading_table, crop_width, crop_height);
     for (int y = 0; y < DSI_HEIGHT; ++y) {
-        int sy = top + dsi_source_coordinate(y, DSI_HEIGHT, crop_height);
-        const uint8_t *row = source + (size_t)sy * source_pitch;
+        int sy = top + (int)reading_table.y[y];
+        const uint8_t *row = source + (size_t)sy * source_pitch + left;
+        volatile uint16_t *output = destination + (size_t)y * destination_pitch;
+        if (((uintptr_t)output & 3) == 0) {
+            volatile WordPixels *words = (volatile WordPixels *)output;
+            for (int x = 0; x < DSI_WIDTH; x += 4)
+                words[x / 4] = (uint32_t)row[reading_table.x[x]]
+                    | (uint32_t)row[reading_table.x[x + 1]] << 8
+                    | (uint32_t)row[reading_table.x[x + 2]] << 16
+                    | (uint32_t)row[reading_table.x[x + 3]] << 24;
+            continue;
+        }
         for (int x = 0; x < DSI_WIDTH; x += 2) {
-            unsigned sx0 = x_map[x], sx1 = x_map[x + 1];
+            unsigned sx0 = reading_table.x[x], sx1 = reading_table.x[x + 1];
             destination[(size_t)y * destination_pitch + x / 2]
                 = (uint16_t)(row[sx0] | (uint16_t)row[sx1] << 8);
         }

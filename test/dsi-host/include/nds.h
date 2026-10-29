@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stddef.h>
 typedef uint64_t u64;
 typedef uint32_t u32;
 typedef struct { uint16_t px, py; } touchPosition;
@@ -10,6 +11,30 @@ extern uint64_t host_ticks;
 extern u32 host_key_state, host_previous_keys, host_scanned_keys;
 extern touchPosition host_touch;
 extern int host_main_on_bottom;
+extern unsigned host_sound_active, host_sound_stops;
+extern const void *host_sound_pcm[16];
+extern unsigned host_sound_words[16], host_sound_volume[16], host_sound_pan[16], host_sound_rate[16];
+typedef enum { SoundOutSrc_Mixer } SoundOutSrc;
+typedef enum { SoundMode_OneShot } SoundMode;
+typedef enum { SoundFmt_Pcm16 } SoundFmt;
+#define SOUND_START (1u << 4)
+static inline void soundInit(void) { }
+static inline void soundPowerOn(void) { }
+static inline void soundSetMixerVolume(unsigned volume) { }
+static inline void soundSetMixerConfig(SoundOutSrc a, SoundOutSrc b, int c, int d) { }
+static inline void soundSetAutoUpdate(int enabled) { }
+static inline unsigned soundGetActiveChannels(void) { return host_sound_active; }
+static inline void soundSynchronize(void) { }
+static inline void soundStop(unsigned mask) { host_sound_active &= ~mask; ++host_sound_stops; }
+static inline unsigned soundTimerFromHz(unsigned rate) { return rate; }
+static inline void DC_FlushRange(const void *data, unsigned bytes) { }
+static inline void soundPreparePcm(unsigned ch, unsigned volume, unsigned pan, unsigned timer,
+    SoundMode mode, SoundFmt fmt, const void *data, unsigned loop, unsigned words) {
+    ch &= 15;
+    host_sound_pcm[ch] = data; host_sound_words[ch] = words;
+    host_sound_volume[ch] = volume; host_sound_pan[ch] = pan; host_sound_rate[ch] = timer;
+    host_sound_active |= 1u << ch;
+}
 #define BG_PALETTE host_palette
 #define BG_PALETTE_SUB host_sub_palette
 #define MODE_5_2D 0

@@ -1,10 +1,81 @@
 {
-  "status": "R5 configurable 1.5/2/2.5x reading zoom, 25/35/50% top map, and L right mouse; hardware untested",
-  "previous_hardware_report": "User reports R3 working; R3 trace reached town and game loop at heap_used=7297056",
-  "input_regression_test": "Actual SDL core: R3 controls plus independent top map/bottom game buffers, all 3 reading zooms/pixels/edges, map scales/defaults, L right-click/taps/hold/remap/disabled/controller, L+touch, chord isolation, palette/console restoration passed",
-  "palette_regression_test": "R1 failure reproduced; R2 passed actual SDL core with simulated hardware",
-  "rom_bytes": 2149376,
-  "rom_sha256": "235acb3360f3add636854ca123061aa933093feb07e00d6986646bcc30b1ccc6",
+  "status": "R6: final release with 640x480 rendering and top-map toggle; final binary not hardware tested",
+  "source_repository": "https://github.com/LED-BOY/devil-dsi",
+  "source_pull_request": "https://github.com/LED-BOY/devil-dsi/pull/1",
+  "source_branch": "codex/r6-dsi-controls-video",
+  "source_base_commit": "0c27a038788ee68634e9ee3ddcfce121a6402740",
+  "source_modified_for_build": true,
+  "version_suffix": "-DSi-R6",
+  "cross_build": "passed: native Windows CMake/Ninja and devkitARM GCC 16.1.0",
+  "host_test": "passed: actual SDL core/DSi driver, R3-R6 regressions",
+  "hardware_tested": false,
+  "emulator_tested": false,
+  "potion_fix_hardware_confirmed": false,
+  "performance_hardware_measured": false,
+  "test4_user_reported_fps": "approximately 7.4-8 in slow gameplay; stage breakdown unavailable",
+  "itcm": {
+    "itcm_bytes": 3640,
+    "itcm_available_bytes": 32736,
+    "load_address": "0x2008d78",
+    "kernels": {
+      "DsiBlitMapped": {
+        "address": "0x1ff8454",
+        "bytes": 156
+      },
+      "DsiBlitBlended": {
+        "address": "0x1ff84f0",
+        "bytes": 196
+      },
+      "DsiBlitBlendedMapped": {
+        "address": "0x1ff85b4",
+        "bytes": 224
+      },
+      "DsiFillBlended": {
+        "address": "0x1ff8694",
+        "bytes": 144
+      },
+      "dsi_present_index8": {
+        "address": "0x1ff8020",
+        "bytes": 488
+      },
+      "dsi_present_reading_index8": {
+        "address": "0x1ff8208",
+        "bytes": 588
+      }
+    }
+  },
+  "optimized_renderer_files": [
+    "scrollrt.cpp",
+    "clx_render.cpp",
+    "dun_render.cpp"
+  ],
+  "renderer_optimization": "-O2; ARM/ITCM only for small C pixel/presentation kernels",
+  "top_map_refresh_hz_default": 15,
+  "top_map_refresh_hz_choices": [
+    10,
+    15,
+    0
+  ],
+  "performance_stats_default": false,
+  "internal_resolution": [
+    640,
+    480
+  ],
+  "ui_canvas_resolution": [
+    640,
+    480
+  ],
+  "top_map_default": true,
+  "top_map_off_stats_refresh_hz": 2,
+  "latest_hardware_baseline": {
+    "fps": 7.3,
+    "draw_ms": 98.3,
+    "map_ms": 18.3,
+    "copy_bottom_ms": 6.4,
+    "copy_top_ms": 5.3
+  },
+  "rom_bytes": 2288640,
+  "rom_sha256": "a5ffcc4851c81f2c0de22ec472bd3d00d267faa6e7991a190745d7901448af57",
   "rom_unit_code": 2,
   "header_crc16": "verified",
   "rom_segments": {
@@ -12,35 +83,38 @@
       "offset": 16384,
       "entry": "0x2004800",
       "ram": "0x2004000",
-      "bytes": 2053024
+      "bytes": 2192336
     },
     "arm7": {
-      "offset": 2069504,
+      "offset": 2208768,
       "entry": "0x2380000",
       "ram": "0x2380000",
       "bytes": 45940
     },
     "arm9i": {
-      "offset": 2118656,
+      "offset": 2257920,
       "entry": "0x0",
       "ram": "0x2400000",
       "bytes": 12
     },
     "arm7i": {
-      "offset": 2119168,
+      "offset": 2258432,
       "entry": "0x3807558",
       "ram": "0x2e80000",
       "bytes": 30004
     }
   },
   "arm9_elf": {
-    "text": 2039600,
-    "data": 13436,
-    "bss": 697572,
-    "note": "Includes reserved 128 KiB engine stack; excludes dynamic heap and loaded game assets"
+    "text": 2174752,
+    "data": 17596,
+    "bss": 710804
   },
-  "hardware_tested": false,
-  "emulator_tested": false,
-  "sound": false,
-  "networking": false
+  "sound": true,
+  "music": false,
+  "movie_audio": false,
+  "sfx_pcm_cache_limit_bytes": 1048576,
+  "sfx_input_limit_bytes": 131072,
+  "sfx_decoded_sample_limit_bytes": 262144,
+  "networking": false,
+  "implementation_notes": "Top Map Off skips automap rendering/copying, black top with reader preserved; optional stats-only black layer at 2 Hz. Existing optimizations, save/potion/SFX fixes retained. Hardware visuals/input/FPS need confirmation."
 }

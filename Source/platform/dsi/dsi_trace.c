@@ -13,7 +13,7 @@ void DsiTraceInit(void)
         printf("Cannot create dsi-startup.txt\n");
         return;
     }
-    fputs("DSi engine R5: configurable menu zoom, top map and L button\n"
+    fputs("DSi engine R6: performance + map toggle\n"
           "heap_used/heap_free_in_arena/arena_bytes describe malloc's arena,\n"
           "not all free DSi RAM. File is reset on each launch.\n", file);
     fclose(file);

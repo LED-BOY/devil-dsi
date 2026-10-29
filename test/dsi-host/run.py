@@ -20,7 +20,8 @@ for include in [test / 'include', sdl / 'include', sdl / 'src', sdl / 'src/video
                 sdl / 'src/events', engine / 'Source/platform/dsi']:
     args += ['-I' + str(include)]
 exe = test / 'palette_test.exe'
-args += [str(p) for p in sources] + [str(driver), str(engine / 'Source/platform/dsi/dsi_video.c'),
+args += [str(p) for p in sources] + [str(driver), str(engine / 'Source/platform/dsi/dsi_video.c'), str(engine / 'Source/platform/dsi/dsi_render.c'),
+                                   str(engine / 'Source/platform/dsi/dsi_audio.c'),
                                    str(test / 'palette_test.c'), '-o', str(exe)]
 result = subprocess.run(args)
 if result.returncode:

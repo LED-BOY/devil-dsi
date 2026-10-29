@@ -13,14 +13,14 @@
 #include <SDL3/SDL_surface.h>
 #include <SDL3/SDL_timer.h>
 
-#ifndef NOSOUND
+#if !defined(NOSOUND) && !defined(__DSI__)
 #include <SDL3/SDL_audio.h>
 #include <SDL3_mixer/SDL_mixer.h>
 #endif
 #else
 #include <SDL.h>
 
-#ifndef NOSOUND
+#if !defined(NOSOUND) && !defined(__DSI__)
 #include "utils/aulib.hpp"
 #include "utils/push_aulib_decoder.h"
 #endif
@@ -41,7 +41,7 @@
 namespace devilution {
 namespace {
 
-#ifndef NOSOUND
+#if !defined(NOSOUND) && !defined(__DSI__)
 #ifdef USE_SDL3
 SDL_AudioStream *SVidAudioStream;
 SDL_AudioDeviceID SVidAudioDevice;
@@ -150,7 +150,7 @@ void TrySetVideoModeToSVidForSDL1()
 }
 #endif
 
-#ifndef NOSOUND
+#if !defined(NOSOUND) && !defined(__DSI__)
 // Returns the volume scaled to [0.0F, 1.0F] range.
 float GetVolume() { return static_cast<float>(*GetOptions().Audio.soundVolume - VOLUME_MIN) / -VOLUME_MIN; }
 
@@ -365,7 +365,7 @@ bool SVidPlayBegin(const char *filename, int flags)
 		return false;
 	}
 
-#ifndef NOSOUND
+#if !defined(NOSOUND) && !defined(__DSI__)
 	const bool enableAudio = (flags & 0x1000000) == 0;
 
 	auto audioInfo = Smacker_GetAudioTrackDetails(SVidHandle, 0);
@@ -484,7 +484,7 @@ bool SVidPlayContinue()
 		return SVidLoadNextFrame(); // Skip video and audio if the system is to slow
 	}
 
-#ifndef NOSOUND
+#if !defined(NOSOUND) && !defined(__DSI__)
 	if (ShouldPushAudioData()) {
 		std::int16_t *buf = SVidAudioBuffer.get();
 		const auto len = Smacker_GetAudioData(SVidHandle, 0, buf);
@@ -522,7 +522,7 @@ bool SVidPlayContinue()
 
 void SVidPlayEnd()
 {
-#ifndef NOSOUND
+#if !defined(NOSOUND) && !defined(__DSI__)
 	if (SVidAudioStream) {
 #ifdef USE_SDL3
 		SDL_DestroyAudioStream(SVidAudioStream);
@@ -583,7 +583,7 @@ void SVidPlayEnd()
 
 void SVidMute()
 {
-#ifndef NOSOUND
+#if !defined(NOSOUND) && !defined(__DSI__)
 #ifdef USE_SDL3
 	SVidAutoStreamEnabled = false;
 #else
@@ -595,7 +595,7 @@ void SVidMute()
 
 void SVidUnmute()
 {
-#ifndef NOSOUND
+#if !defined(NOSOUND) && !defined(__DSI__)
 #ifdef USE_SDL3
 	if (SVidAudioStream != nullptr) SVidAutoStreamEnabled = true;
 #else

@@ -18,6 +18,7 @@
 
 #include "DiabloUI/ui_flags.hpp"
 #include "engine/clx_sprite.hpp"
+#include "engine/backbuffer_state.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
@@ -144,16 +145,24 @@ bool IsDiabloMsgAvailable()
 	return !DiabloMessages.empty();
 }
 
+void UpdateDiabloMessages()
+{
+	if (!DiabloMessages.empty() && SDL_GetTicks() - msgStartTime >= DiabloMessages.front().duration)
+		CancelCurrentDiabloMsg();
+}
+
 void CancelCurrentDiabloMsg()
 {
 	if (!DiabloMessages.empty()) {
 		DiabloMessages.pop_front();
 		InitDiabloMsg();
+		RedrawEverything();
 	}
 }
 
 void ClrDiabloMsg()
 {
+	if (!DiabloMessages.empty()) RedrawEverything();
 	DiabloMessages.clear();
 }
 
@@ -216,14 +225,6 @@ void DrawDiabloMsg(const Surface &out)
 		textY += LineHeight;
 	}
 
-	// Calculate the time the current message has been displayed
-	const uint32_t messageElapsedTime = SDL_GetTicks() - msgStartTime;
-
-	// Check if the current message's duration has passed
-	if (!DiabloMessages.empty() && messageElapsedTime >= DiabloMessages.front().duration) {
-		DiabloMessages.pop_front();
-		InitDiabloMsg();
-	}
 }
 
 } // namespace devilution

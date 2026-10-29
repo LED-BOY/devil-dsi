@@ -179,7 +179,7 @@ else()
   endif()
 endif()
 
-if(NOT NOSOUND)
+if(NOT NOSOUND AND NOT NINTENDO_DSI)
   if(USE_SDL3)
     if(NOT DEFINED DEVILUTIONX_SYSTEM_SDL_MIXER)
       find_package(SDL3_mixer QUIET CONFIG)
