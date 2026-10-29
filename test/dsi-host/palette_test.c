@@ -206,7 +206,7 @@ int main(void)
     if (!CheckScaleCache()) { puts("FAIL: scale cache"); return 1; }
     if (!CheckRenderKernels() || !CheckPackedStores()) { puts("FAIL: render kernel/word store regression"); return 1; }
     if (!CheckPerformance(screen)) { puts("FAIL: performance regression"); return 1; }
-    if (!CheckSceneComposition() || !CheckMapOff(screen)) { puts("FAIL: scene/map off options"); return 1; }
+    if (!CheckMapOff(screen)) { puts("FAIL: scene/map off options"); return 1; }
     if (!CheckR5Settings(screen)) return 1;
     if (!CheckR6(screen)) { puts("FAIL: R6 regression"); return 1; }
     if (!CheckPotionAction()) { puts("FAIL: potion input regression"); return 1; }

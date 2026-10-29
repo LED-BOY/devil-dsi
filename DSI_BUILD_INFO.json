@@ -1,11 +1,11 @@
 {
-  "status": "R6 test6: top-map toggle and 320x240 scene mode with preserved 640x480 UI; hardware untested",
+  "status": "R6: final release with 640x480 rendering and top-map toggle; final binary not hardware tested",
   "source_repository": "https://github.com/LED-BOY/devil-dsi",
   "source_pull_request": "https://github.com/LED-BOY/devil-dsi/pull/1",
   "source_branch": "codex/r6-dsi-controls-video",
-  "source_base_commit": "7e22e1026802fe39fb5ac295c4e1014bcdb02391",
+  "source_base_commit": "0c27a038788ee68634e9ee3ddcfce121a6402740",
   "source_modified_for_build": true,
-  "version_suffix": "-DSi-R6-test6",
+  "version_suffix": "-DSi-R6",
   "cross_build": "passed: native Windows CMake/Ninja and devkitARM GCC 16.1.0",
   "host_test": "passed: actual SDL core/DSi driver, R3-R6 regressions",
   "hardware_tested": false,
@@ -14,7 +14,7 @@
   "performance_hardware_measured": false,
   "test4_user_reported_fps": "approximately 7.4-8 in slow gameplay; stage breakdown unavailable",
   "itcm": {
-    "itcm_bytes": 4040,
+    "itcm_bytes": 3640,
     "itcm_available_bytes": 32736,
     "load_address": "0x2008d78",
     "kernels": {
@@ -41,10 +41,6 @@
       "dsi_present_reading_index8": {
         "address": "0x1ff8208",
         "bytes": 588
-      },
-      "DsiExpandScene2x": {
-        "address": "0x1ff8724",
-        "bytes": 400
       }
     }
   },
@@ -69,27 +65,6 @@
     640,
     480
   ],
-  "scene_resolution_default": [
-    640,
-    480
-  ],
-  "scene_resolution_choices": [
-    [
-      640,
-      480
-    ],
-    [
-      320,
-      240
-    ]
-  ],
-  "low_scene_normal_hud_viewport": [
-    320,
-    176
-  ],
-  "low_scene_buffer_bytes": 76800,
-  "low_scene_camera": "closer 2x camera; world rendered before expansion into original UI",
-  "nonstandard_canvas_behavior": "existing in-place zoom fallback",
   "top_map_default": true,
   "top_map_off_stats_refresh_hz": 2,
   "latest_hardware_baseline": {
@@ -99,8 +74,8 @@
     "copy_bottom_ms": 6.4,
     "copy_top_ms": 5.3
   },
-  "rom_bytes": 2290688,
-  "rom_sha256": "bd95dd341d728658add625e83294880b3a7e60c77eb1c50b5faa2a12f765a29f",
+  "rom_bytes": 2288640,
+  "rom_sha256": "a5ffcc4851c81f2c0de22ec472bd3d00d267faa6e7991a190745d7901448af57",
   "rom_unit_code": 2,
   "header_crc16": "verified",
   "rom_segments": {
@@ -108,31 +83,31 @@
       "offset": 16384,
       "entry": "0x2004800",
       "ram": "0x2004000",
-      "bytes": 2193984
+      "bytes": 2192336
     },
     "arm7": {
-      "offset": 2210816,
+      "offset": 2208768,
       "entry": "0x2380000",
       "ram": "0x2380000",
       "bytes": 45940
     },
     "arm9i": {
-      "offset": 2259968,
+      "offset": 2257920,
       "entry": "0x0",
       "ram": "0x2400000",
       "bytes": 12
     },
     "arm7i": {
-      "offset": 2260480,
+      "offset": 2258432,
       "entry": "0x3807558",
       "ram": "0x2e80000",
       "bytes": 30004
     }
   },
   "arm9_elf": {
-    "text": 2176400,
+    "text": 2174752,
     "data": 17596,
-    "bss": 710884
+    "bss": 710804
   },
   "sound": true,
   "music": false,
@@ -141,5 +116,5 @@
   "sfx_input_limit_bytes": 131072,
   "sfx_decoded_sample_limit_bytes": 262144,
   "networking": false,
-  "implementation_notes": "Top Map Off skips automap rendering/copying, black top with reader preserved; optional stats-only black layer at 2 Hz. Separate 320x240 scene allocation on standard 640x480 UI, closer zoom transform shared by cursor/labels. Existing optimizations, save/potion/SFX fixes retained. Hardware visuals/input/FPS need confirmation."
+  "implementation_notes": "Top Map Off skips automap rendering/copying, black top with reader preserved; optional stats-only black layer at 2 Hz. Existing optimizations, save/potion/SFX fixes retained. Hardware visuals/input/FPS need confirmation."
 }

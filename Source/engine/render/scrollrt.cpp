@@ -6,7 +6,6 @@
 #include "engine/render/scrollrt.h"
 #ifdef __DSI__
 #include "platform/dsi/dsi_video.h"
-#include "platform/dsi/dsi_render.h"
 #endif
 
 #include <cmath>
@@ -1191,11 +1190,11 @@ void CalcFirstTilePosition(Point &position, Displacement &offset)
 
 	// Skip rendering parts covered by the panels
 	if (CanPanelsCoverView() && (IsLeftPanelOpen() || IsRightPanelOpen())) {
-		const int multiplier = (IsGameplayZoomed()) ? 1 : 2;
+		const int multiplier = (*GetOptions().Graphics.zoom) ? 1 : 2;
 		position += Displacement(Direction::East) * multiplier;
 		offset.deltaX += -TILE_WIDTH * multiplier / 2 / 2;
 
-		if (IsLeftPanelOpen() && !IsGameplayZoomed()) {
+		if (IsLeftPanelOpen() && !*GetOptions().Graphics.zoom) {
 			offset.deltaX += SidePanelSize.width;
 			// SidePanelSize.width accounted for in Zoom()
 		}
@@ -1230,128 +1229,90 @@ void CalcFirstTilePosition(Point &position, Displacement &offset)
  * @param position First tile of view in dPiece coordinate
  * @param offset Amount to offset the rendering in screen space
  */
-void DrawGame(const Surface &fullOut, Point position, Displacement offset)
-{
-	// UI composition stays on the 640x480 canvas; the low scene is a separate
-	// 320x240 allocation, with the viewport using its top 320x176 region.
-#ifdef __DSI__
-	const bool lowScene = *GetOptions().Dsi.sceneResolution == 320
-	    && fullOut.w() == 640 && fullOut.h() == 480;
-	static SDLSurfaceUniquePtr sceneSurface;
-	if (lowScene && !sceneSurface) {
-		sceneSurface.reset(SDL_CreateRGBSurface(0, 320, 240, 8, 0, 0, 0, 0));
-		if (!sceneSurface) ErrSdl();
-	}
-	if (lowScene) SDL_FillRect(sceneSurface.get(), nullptr, 0);
-	const Surface sceneOut = lowScene ? Surface(sceneSurface.get()) : fullOut;
-#else
-	const Surface &sceneOut = fullOut;
-#endif
-	const Surface out = !IsGameplayZoomed()
-	    ? sceneOut.subregionY(0, gnViewportHeight)
-	    : sceneOut.subregionY(0, (gnViewportHeight + 1) / 2);
-
-	int columns = tileColumns;
-	int rows = tileRows;
-
-	// Skip rendering parts covered by the panels
-	if (CanPanelsCoverView() && (IsLeftPanelOpen() || IsRightPanelOpen())) {
-		columns -= (IsGameplayZoomed()) ? 2 : 4;
-	}
-
-	UpdateMissilesRendererData();
-
-	// Draw areas moving in and out of the screen
-	if (MyPlayer->isWalking()) {
-		switch (MyPlayer->_pdir) {
-		case Direction::NoDirection:
-			break;
-		case Direction::North:
-		case Direction::South:
-			rows += 2;
-			break;
-		case Direction::NorthEast:
-			columns++;
-			rows += 2;
-			break;
-		case Direction::East:
-		case Direction::West:
-			columns++;
-			break;
-		case Direction::SouthEast:
-		case Direction::SouthWest:
-		case Direction::NorthWest:
-			columns++;
-			rows++;
-			break;
-		}
-	}
-
-#ifdef DUN_RENDER_STATS
-	DunRenderStats.clear();
-#endif
-
-	int lightingWidth = gnScreenWidth;
-	int lightingHeight = gnViewportHeight;
-#ifdef __DSI__
-	if (lowScene) { lightingWidth = out.w(); lightingHeight = out.h(); }
-#endif
-	Lightmap lightmap = Lightmap::build(*GetOptions().Graphics.perPixelLighting, position, Point {} + offset,
-	    lightingWidth, lightingHeight, rows, columns,
-	    out.at(0, 0), out.pitch(), LightTables, FullyLitLightTable, FullyDarkLightTable,
-	    dLight, MicroTileLen);
-
-	DrawFloor(out, lightmap, position, Point {} + offset, rows, columns);
-	DrawTileContent(out, lightmap, position, Point {} + offset, rows, columns);
-	DrawOOB(out, lightmap, position, Point {} + offset, rows, columns);
-
-#ifdef __DSI__
-	if (lowScene) {
-		int viewportWidth = fullOut.w();
-		int viewportX = 0;
-		if (CanPanelsCoverView()) {
-			if (IsLeftPanelOpen()) {
-				viewportWidth -= SidePanelSize.width;
-				viewportX = SidePanelSize.width;
-			} else if (IsRightPanelOpen()) {
-				viewportWidth -= SidePanelSize.width;
-			}
-		}
-		if (!DsiExpandScene2x(out.at(0, 0), out.w(), out.h(), out.pitch(),
-		        fullOut.at(viewportX, 0), viewportWidth, gnViewportHeight, fullOut.pitch())) {
-			SDL_SetError("Invalid DSi scene composition");
-			ErrSdl();
-		}
-	} else
-#endif
-	if (IsGameplayZoomed()) {
-		Zoom(fullOut.subregionY(0, gnViewportHeight));
-	}
-
-#ifdef DUN_RENDER_STATS
-	std::vector<std::pair<DunRenderType, size_t>> sortedStats(DunRenderStats.begin(), DunRenderStats.end());
-	c_sort(sortedStats, [](const std::pair<DunRenderType, size_t> &a, const std::pair<DunRenderType, size_t> &b) {
-		return a.first.maskType == b.first.maskType
-		    ? static_cast<uint8_t>(a.first.tileType) < static_cast<uint8_t>(b.first.tileType)
-		    : static_cast<uint8_t>(a.first.maskType) < static_cast<uint8_t>(b.first.maskType);
-	});
-	Point pos { 100, 20 };
-	for (size_t i = 0; i < sortedStats.size(); ++i) {
-		const auto &stat = sortedStats[i];
-		DrawString(out, StrCat(i, "."), Rectangle(pos, Size { 20, 16 }), { .flags = UiFlags::AlignRight });
-		DrawString(out, MaskTypeToString(stat.first.maskType), { pos.x + 24, pos.y });
-		DrawString(out, TileTypeToString(stat.first.tileType), { pos.x + 184, pos.y });
-		DrawString(out, FormatInteger(stat.second), Rectangle({ pos.x + 354, pos.y }, Size(40, 16)), { .flags = UiFlags::AlignRight });
-		pos.y += 16;
-	}
-#endif
-}
-
-/**
- * @brief Start rendering of screen, town variation
- * @param out Buffer to render to
- * @param startPosition Center of view in dPiece coordinates
- */
+void DrawGame(const Surface &fullOut, Point position, Displacement offset)
+{
+	// Limit rendering to the view area
+	const Surface &out = !*GetOptions().Graphics.zoom
+	    ? fullOut.subregionY(0, gnViewportHeight)
+	    : fullOut.subregionY(0, (gnViewportHeight + 1) / 2);
+
+	int columns = tileColumns;
+	int rows = tileRows;
+
+	// Skip rendering parts covered by the panels
+	if (CanPanelsCoverView() && (IsLeftPanelOpen() || IsRightPanelOpen())) {
+		columns -= (*GetOptions().Graphics.zoom) ? 2 : 4;
+	}
+
+	UpdateMissilesRendererData();
+
+	// Draw areas moving in and out of the screen
+	if (MyPlayer->isWalking()) {
+		switch (MyPlayer->_pdir) {
+		case Direction::NoDirection:
+			break;
+		case Direction::North:
+		case Direction::South:
+			rows += 2;
+			break;
+		case Direction::NorthEast:
+			columns++;
+			rows += 2;
+			break;
+		case Direction::East:
+		case Direction::West:
+			columns++;
+			break;
+		case Direction::SouthEast:
+		case Direction::SouthWest:
+		case Direction::NorthWest:
+			columns++;
+			rows++;
+			break;
+		}
+	}
+
+#ifdef DUN_RENDER_STATS
+	DunRenderStats.clear();
+#endif
+
+	Lightmap lightmap = Lightmap::build(*GetOptions().Graphics.perPixelLighting, position, Point {} + offset,
+	    gnScreenWidth, gnViewportHeight, rows, columns,
+	    out.at(0, 0), out.pitch(), LightTables, FullyLitLightTable, FullyDarkLightTable,
+	    dLight, MicroTileLen);
+
+	DrawFloor(out, lightmap, position, Point {} + offset, rows, columns);
+	DrawTileContent(out, lightmap, position, Point {} + offset, rows, columns);
+	DrawOOB(out, lightmap, position, Point {} + offset, rows, columns);
+
+	if (*GetOptions().Graphics.zoom) {
+		Zoom(fullOut.subregionY(0, gnViewportHeight));
+	}
+
+#ifdef DUN_RENDER_STATS
+	std::vector<std::pair<DunRenderType, size_t>> sortedStats(DunRenderStats.begin(), DunRenderStats.end());
+	c_sort(sortedStats, [](const std::pair<DunRenderType, size_t> &a, const std::pair<DunRenderType, size_t> &b) {
+		return a.first.maskType == b.first.maskType
+		    ? static_cast<uint8_t>(a.first.tileType) < static_cast<uint8_t>(b.first.tileType)
+		    : static_cast<uint8_t>(a.first.maskType) < static_cast<uint8_t>(b.first.maskType);
+	});
+	Point pos { 100, 20 };
+	for (size_t i = 0; i < sortedStats.size(); ++i) {
+		const auto &stat = sortedStats[i];
+		DrawString(out, StrCat(i, "."), Rectangle(pos, Size { 20, 16 }), { .flags = UiFlags::AlignRight });
+		DrawString(out, MaskTypeToString(stat.first.maskType), { pos.x + 24, pos.y });
+		DrawString(out, TileTypeToString(stat.first.tileType), { pos.x + 184, pos.y });
+		DrawString(out, FormatInteger(stat.second), Rectangle({ pos.x + 354, pos.y }, Size(40, 16)), { .flags = UiFlags::AlignRight });
+		pos.y += 16;
+	}
+#endif
+}
+
+/**
+ * @brief Start rendering of screen, town variation
+ * @param out Buffer to render to
+ * @param startPosition Center of view in dPiece coordinates
+ */
 void DrawView(const Surface &out, Point startPosition)
 {
 #ifdef _DEBUG
@@ -1377,11 +1338,11 @@ void DrawView(const Surface &out, Point startPosition)
 				continue;
 			if (megaTiles)
 				pixelCoords += Displacement { 0, TILE_HEIGHT / 2 };
-			if (IsGameplayZoomed())
+			if (*GetOptions().Graphics.zoom)
 				pixelCoords *= 2;
 			if (debugGridTextNeeded && GetDebugGridText(dunCoords, debugGridText)) {
 				Size tileSize = { TILE_WIDTH, TILE_HEIGHT };
-				if (IsGameplayZoomed())
+				if (*GetOptions().Graphics.zoom)
 					tileSize *= 2;
 				DrawString(out, debugGridText, { pixelCoords - Displacement { 0, tileSize.height }, tileSize },
 				    { .flags = UiFlags::ColorRed | UiFlags::AlignCenter | UiFlags::VerticalCenter });
@@ -1389,7 +1350,7 @@ void DrawView(const Surface &out, Point startPosition)
 			if (DebugGrid) {
 				int halfTileWidth = TILE_WIDTH / 2;
 				int halfTileHeight = TILE_HEIGHT / 2;
-				if (IsGameplayZoomed()) {
+				if (*GetOptions().Graphics.zoom) {
 					halfTileWidth *= 2;
 					halfTileHeight *= 2;
 				}
@@ -1652,7 +1613,7 @@ int RowsCoveredByPanel()
 	}
 
 	int rows = mainPanelSize.height / TILE_HEIGHT;
-	if (IsGameplayZoomed()) {
+	if (*GetOptions().Graphics.zoom) {
 		rows /= 2;
 	}
 
@@ -1667,7 +1628,7 @@ void CalcTileOffset(int *offsetX, int *offsetY)
 	int x;
 	int y;
 
-	if (!IsGameplayZoomed()) {
+	if (!*GetOptions().Graphics.zoom) {
 		x = screenWidth % TILE_WIDTH;
 		y = viewportHeight % TILE_HEIGHT;
 	} else {
@@ -1698,7 +1659,7 @@ void TilesInView(int *rcolumns, int *rrows)
 		rows++;
 	}
 
-	if (IsGameplayZoomed()) {
+	if (*GetOptions().Graphics.zoom) {
 		// Half the number of tiles, rounded up
 		if ((columns & 1) != 0) {
 			columns++;
@@ -1716,14 +1677,14 @@ void TilesInView(int *rcolumns, int *rrows)
 
 void CalcViewportGeometry()
 {
-	const int zoomFactor = IsGameplayZoomed() ? 2 : 1;
+	const int zoomFactor = *GetOptions().Graphics.zoom ? 2 : 1;
 	const int screenWidth = GetScreenWidth() / zoomFactor;
 	const int screenHeight = GetScreenHeight() / zoomFactor;
 	const int panelHeight = GetMainPanel().size.height / zoomFactor;
 	const int pixelsToPanel = screenHeight - panelHeight;
 	Point playerPosition { screenWidth / 2, pixelsToPanel / 2 };
 
-	if (IsGameplayZoomed())
+	if (*GetOptions().Graphics.zoom)
 		playerPosition.y += TILE_HEIGHT / 4;
 
 	const int tilesToTop = (playerPosition.y + TILE_HEIGHT - 1) / TILE_HEIGHT;

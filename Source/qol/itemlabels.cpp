@@ -124,7 +124,7 @@ void AddItemToLabelQueue(int id, Point position)
 
 	position.x += *labelCenterOffsets[index];
 	position.y -= TILE_HEIGHT;
-	if (IsGameplayZoomed()) {
+	if (*GetOptions().Graphics.zoom) {
 		position *= 2;
 	}
 	position.x -= nameWidth / 2;
