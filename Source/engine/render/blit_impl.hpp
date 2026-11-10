@@ -25,12 +25,20 @@ namespace devilution {
 
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitFillDirect(uint8_t *dst, unsigned length, uint8_t color)
 {
+#ifdef __DSI__
+	if (DsiSceneSampling && DsiSampleSpan(dst, nullptr, length, color, nullptr, nullptr, 0)) return;
+#endif
+
 	DVL_ASSUME(length != 0);
 	std::memset(dst, color, length);
 }
 
 DVL_ALWAYS_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsDirect(uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length)
 {
+#ifdef __DSI__
+	if (DsiSceneSampling && DsiSampleSpan(dst, src, length, 0, nullptr, nullptr, 0)) return;
+#endif
+
 	DVL_ASSUME(length != 0);
 	std::memcpy(dst, src, length);
 }
@@ -48,12 +56,20 @@ struct BlitDirect {
 
 inline DVL_NO_INLINE DVL_ATTRIBUTE_HOT void BlitFillWithMap(uint8_t *dst, unsigned length, uint8_t color, const uint8_t *DVL_RESTRICT colorMap)
 {
+#ifdef __DSI__
+	if (DsiSceneSampling && DsiSampleSpan(dst, nullptr, length, color, colorMap, nullptr, 0)) return;
+#endif
+
 	DVL_ASSUME(length != 0);
 	std::memset(dst, colorMap[color], length);
 }
 
 DVL_PIXEL_KERNEL_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsWithMap(uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length, const uint8_t *DVL_RESTRICT colorMap)
 {
+#ifdef __DSI__
+	if (DsiSceneSampling && DsiSampleSpan(dst, src, length, 0, colorMap, nullptr, 0)) return;
+#endif
+
 #ifdef __DSI__
 	DsiBlitMapped(dst, src, length, colorMap);
 #else
@@ -109,6 +125,10 @@ struct BlitWithLightmap {
 DVL_PIXEL_KERNEL_INLINE DVL_ATTRIBUTE_HOT void BlitFillBlended(uint8_t *dst, unsigned length, uint8_t color)
 {
 #ifdef __DSI__
+	if (DsiSceneSampling && DsiSampleSpan(dst, nullptr, length, color, nullptr, paletteTransparencyLookup, 0)) return;
+#endif
+
+#ifdef __DSI__
 	DsiFillBlended(dst, length, paletteTransparencyLookup[color]);
 #else
 	DVL_ASSUME(length != 0);
@@ -120,6 +140,10 @@ DVL_PIXEL_KERNEL_INLINE DVL_ATTRIBUTE_HOT void BlitFillBlended(uint8_t *dst, uns
 
 DVL_PIXEL_KERNEL_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsBlended(uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length)
 {
+#ifdef __DSI__
+	if (DsiSceneSampling && DsiSampleSpan(dst, src, length, 0, nullptr, paletteTransparencyLookup, 0)) return;
+#endif
+
 #ifdef __DSI__
 	DsiBlitBlended(dst, src, length, paletteTransparencyLookup);
 #else
@@ -143,6 +167,10 @@ struct BlitBlended {
 
 DVL_PIXEL_KERNEL_INLINE DVL_ATTRIBUTE_HOT void BlitPixelsBlendedWithMap(uint8_t *DVL_RESTRICT dst, const uint8_t *DVL_RESTRICT src, unsigned length, const uint8_t *DVL_RESTRICT colorMap)
 {
+#ifdef __DSI__
+	if (DsiSceneSampling && DsiSampleSpan(dst, src, length, 0, colorMap, paletteTransparencyLookup, 1)) return;
+#endif
+
 #ifdef __DSI__
 	DsiBlitBlendedMapped(dst, src, length, colorMap, paletteTransparencyLookup);
 #else

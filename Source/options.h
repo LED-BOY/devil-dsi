@@ -896,6 +896,7 @@ struct DsiOptions : OptionCategoryBase {
 	OptionEntryEnum<int> mapRefresh;
 	OptionEntryBoolean performanceStats;
 	OptionEntryBoolean topMap;
+	OptionEntryBoolean nativeScene;
 	OptionEntryBoolean soundEffects;
 	OptionEntryInt<int> shoulderDefaultsVersion;
 };

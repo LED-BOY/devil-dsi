@@ -27,6 +27,13 @@ for name in required:
     if name.startswith('dsi_present_'):
         assert re.search(r'\bstr\s', code) and re.search(r'\bstrh\s', code), 'Need both word and halfword VRAM paths'
     result[name] = {'address':hex(start), 'bytes':length}
+
+cache = re.search(r'^([0-9a-f]+)\s+([0-9a-f]+)\s+[bB]\s+sprite_cache$', symbols, re.M)
+assert cache, 'R7 sprite cache must be linked'
+assert int(cache.group(2), 16) <= 256 * 1024, 'R7 cache exceeds static RAM budget'
+for name in ['DsiSpriteVisible', 'DsiDrawCachedClx', 'DsiClearSpriteCache']:
+    assert re.search(r'\sT\s+' + name + r'$', symbols, re.M), 'Missing R7 path ' + name
+
 print('PASS: six ARM kernels in loaded ITCM; word/halfword stores retained; vector/32 KiB budget respected')
 print(json.dumps({'itcm_bytes':size, 'itcm_available_bytes':0x7fe0,
                   'load_address':hex(load), 'kernels':result}, indent=2))

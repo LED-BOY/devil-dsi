@@ -26,4 +26,13 @@ args += [str(p) for p in sources] + [str(driver), str(engine / 'Source/platform/
 result = subprocess.run(args)
 if result.returncode:
     raise SystemExit(result.returncode)
-raise SystemExit(subprocess.run([str(exe)]).returncode)
+result = subprocess.run([str(exe)])
+if result.returncode:
+    raise SystemExit(result.returncode)
+sprite_exe = test / 'sprite_cache_test.exe'
+result = subprocess.run([tcc, '-std=c99', '-I' + str(engine / 'Source/platform/dsi'),
+                         str(test / 'sprite_cache_test.c'), str(engine / 'Source/platform/dsi/dsi_render.c'),
+                         '-o', str(sprite_exe)])
+if result.returncode:
+    raise SystemExit(result.returncode)
+raise SystemExit(subprocess.run([str(sprite_exe)]).returncode)

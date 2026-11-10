@@ -35,6 +35,9 @@
 #include "engine/dx.h"
 #include "engine/point.hpp"
 #include "engine/render/clx_render.hpp"
+#ifdef __DSI__
+#include "platform/dsi/dsi_render.h"
+#endif
 #include "engine/render/dun_render.hpp"
 #include "engine/render/light_render.hpp"
 #include "engine/render/text_render.hpp"
@@ -551,6 +554,12 @@ static void DrawDungeon(const Surface & /*out*/, const Lightmap & /*lightmap*/, 
  */
 void DrawCell(const Surface &out, const Lightmap lightmap, Point tilePosition, Point targetBufferPosition, int lightTableIndex)
 {
+#ifdef __DSI__
+	// Cull only terrain here: entities may extend beyond their owning tile.
+	if (!DsiSpriteVisible(targetBufferPosition.x, targetBufferPosition.y, TILE_WIDTH,
+	        (MicroTileLen / 2) * TILE_HEIGHT, out.w(), out.h())) return;
+#endif
+
 	const uint16_t levelPieceId = dPiece[tilePosition.x][tilePosition.y];
 	const MICROS *pMap = &DPieceMicros[levelPieceId];
 
@@ -643,6 +652,13 @@ void DrawCell(const Surface &out, const Lightmap lightmap, Point tilePosition, P
 	targetBufferPosition.y -= TILE_HEIGHT;
 
 	for (uint_fast8_t i = 2, n = MicroTileLen; i < n; i += 2) {
+#ifdef __DSI__
+		if (targetBufferPosition.y < 0) break;
+		if (targetBufferPosition.y - DunFrameHeight + 1 >= out.h()) {
+			targetBufferPosition.y -= TILE_HEIGHT;
+			continue;
+		}
+#endif
 		{
 			const LevelCelBlock levelCelBlock { pMap->mt[i] };
 			if (levelCelBlock.hasValue()) {
@@ -682,6 +698,12 @@ void DrawCell(const Surface &out, const Lightmap lightmap, Point tilePosition, P
  */
 void DrawFloorTile(const Surface &out, const Lightmap &lightmap, Point tilePosition, Point targetBufferPosition)
 {
+#ifdef __DSI__
+	// Cull only terrain here: entities may extend beyond their owning tile.
+	if (!DsiSpriteVisible(targetBufferPosition.x, targetBufferPosition.y, TILE_WIDTH,
+	        DunFrameTriangleHeight, out.w(), out.h())) return;
+#endif
+
 	const int lightTableIndex = dLight[tilePosition.x][tilePosition.y];
 
 	const uint8_t *tbl = LightTables[lightTableIndex].data();
@@ -1229,98 +1251,190 @@ void CalcFirstTilePosition(Point &position, Displacement &offset)
  * @param position First tile of view in dPiece coordinate
  * @param offset Amount to offset the rendering in screen space
  */
-void DrawGame(const Surface &fullOut, Point position, Displacement offset)
-{
-	// Limit rendering to the view area
-	const Surface &out = !*GetOptions().Graphics.zoom
-	    ? fullOut.subregionY(0, gnViewportHeight)
-	    : fullOut.subregionY(0, (gnViewportHeight + 1) / 2);
-
-	int columns = tileColumns;
-	int rows = tileRows;
-
-	// Skip rendering parts covered by the panels
-	if (CanPanelsCoverView() && (IsLeftPanelOpen() || IsRightPanelOpen())) {
-		columns -= (*GetOptions().Graphics.zoom) ? 2 : 4;
-	}
-
-	UpdateMissilesRendererData();
-
-	// Draw areas moving in and out of the screen
-	if (MyPlayer->isWalking()) {
-		switch (MyPlayer->_pdir) {
-		case Direction::NoDirection:
-			break;
-		case Direction::North:
-		case Direction::South:
-			rows += 2;
-			break;
-		case Direction::NorthEast:
-			columns++;
-			rows += 2;
-			break;
-		case Direction::East:
-		case Direction::West:
-			columns++;
-			break;
-		case Direction::SouthEast:
-		case Direction::SouthWest:
-		case Direction::NorthWest:
-			columns++;
-			rows++;
-			break;
-		}
-	}
-
-#ifdef DUN_RENDER_STATS
-	DunRenderStats.clear();
-#endif
-
-	Lightmap lightmap = Lightmap::build(*GetOptions().Graphics.perPixelLighting, position, Point {} + offset,
-	    gnScreenWidth, gnViewportHeight, rows, columns,
-	    out.at(0, 0), out.pitch(), LightTables, FullyLitLightTable, FullyDarkLightTable,
-	    dLight, MicroTileLen);
-
-	DrawFloor(out, lightmap, position, Point {} + offset, rows, columns);
-	DrawTileContent(out, lightmap, position, Point {} + offset, rows, columns);
-	DrawOOB(out, lightmap, position, Point {} + offset, rows, columns);
-
-	if (*GetOptions().Graphics.zoom) {
-		Zoom(fullOut.subregionY(0, gnViewportHeight));
-	}
-
-#ifdef DUN_RENDER_STATS
-	std::vector<std::pair<DunRenderType, size_t>> sortedStats(DunRenderStats.begin(), DunRenderStats.end());
-	c_sort(sortedStats, [](const std::pair<DunRenderType, size_t> &a, const std::pair<DunRenderType, size_t> &b) {
-		return a.first.maskType == b.first.maskType
-		    ? static_cast<uint8_t>(a.first.tileType) < static_cast<uint8_t>(b.first.tileType)
-		    : static_cast<uint8_t>(a.first.maskType) < static_cast<uint8_t>(b.first.maskType);
-	});
-	Point pos { 100, 20 };
-	for (size_t i = 0; i < sortedStats.size(); ++i) {
-		const auto &stat = sortedStats[i];
-		DrawString(out, StrCat(i, "."), Rectangle(pos, Size { 20, 16 }), { .flags = UiFlags::AlignRight });
-		DrawString(out, MaskTypeToString(stat.first.maskType), { pos.x + 24, pos.y });
-		DrawString(out, TileTypeToString(stat.first.tileType), { pos.x + 184, pos.y });
-		DrawString(out, FormatInteger(stat.second), Rectangle({ pos.x + 354, pos.y }, Size(40, 16)), { .flags = UiFlags::AlignRight });
-		pos.y += 16;
-	}
-#endif
-}
-
-/**
- * @brief Start rendering of screen, town variation
- * @param out Buffer to render to
- * @param startPosition Center of view in dPiece coordinates
- */
-void DrawView(const Surface &out, Point startPosition)
+void DrawGame(const Surface &fullOut, Point position, Displacement offset, [[maybe_unused]] bool readingMenu)
+
+{
+
+	// Limit rendering to the view area
+
+	const Surface &out = !*GetOptions().Graphics.zoom
+
+	    ? fullOut.subregionY(0, gnViewportHeight)
+
+	    : fullOut.subregionY(0, (gnViewportHeight + 1) / 2);
+
+
+
+	int columns = tileColumns;
+
+	int rows = tileRows;
+
+
+
+	// Skip rendering parts covered by the panels
+
+	if (CanPanelsCoverView() && (IsLeftPanelOpen() || IsRightPanelOpen())) {
+
+		columns -= (*GetOptions().Graphics.zoom) ? 2 : 4;
+
+	}
+
+
+
+	UpdateMissilesRendererData();
+
+
+
+	// Draw areas moving in and out of the screen
+
+	if (MyPlayer->isWalking()) {
+
+		switch (MyPlayer->_pdir) {
+
+		case Direction::NoDirection:
+
+			break;
+
+		case Direction::North:
+
+		case Direction::South:
+
+			rows += 2;
+
+			break;
+
+		case Direction::NorthEast:
+
+			columns++;
+
+			rows += 2;
+
+			break;
+
+		case Direction::East:
+
+		case Direction::West:
+
+			columns++;
+
+			break;
+
+		case Direction::SouthEast:
+
+		case Direction::SouthWest:
+
+		case Direction::NorthWest:
+
+			columns++;
+
+			rows++;
+
+			break;
+
+		}
+
+	}
+
+
+
+#ifdef DUN_RENDER_STATS
+
+	DunRenderStats.clear();
+
+#endif
+
+
+
+	Lightmap lightmap = Lightmap::build(*GetOptions().Graphics.perPixelLighting, position, Point {} + offset,
+
+	    gnScreenWidth, gnViewportHeight, rows, columns,
+
+	    out.at(0, 0), out.pitch(), LightTables, FullyLitLightTable, FullyDarkLightTable,
+
+	    dLight, MicroTileLen);
+
+
+
+#ifdef __DSI__
+	if (*GetOptions().Dsi.nativeScene && !*GetOptions().Graphics.zoom)
+		DsiBeginSceneSamples(out.begin(), out.pitch(), out.w(), fullOut.h(), out.h());
+#endif
+	DrawFloor(out, lightmap, position, Point {} + offset, rows, columns);
+
+	DrawTileContent(out, lightmap, position, Point {} + offset, rows, columns);
+
+	DrawOOB(out, lightmap, position, Point {} + offset, rows, columns);
+#ifdef __DSI__
+	DsiEndSceneSamples(readingMenu);
+#endif
+
+
+
+
+	if (*GetOptions().Graphics.zoom) {
+
+		Zoom(fullOut.subregionY(0, gnViewportHeight));
+
+	}
+
+
+
+#ifdef DUN_RENDER_STATS
+
+	std::vector<std::pair<DunRenderType, size_t>> sortedStats(DunRenderStats.begin(), DunRenderStats.end());
+
+	c_sort(sortedStats, [](const std::pair<DunRenderType, size_t> &a, const std::pair<DunRenderType, size_t> &b) {
+
+		return a.first.maskType == b.first.maskType
+
+		    ? static_cast<uint8_t>(a.first.tileType) < static_cast<uint8_t>(b.first.tileType)
+
+		    : static_cast<uint8_t>(a.first.maskType) < static_cast<uint8_t>(b.first.maskType);
+
+	});
+
+	Point pos { 100, 20 };
+
+	for (size_t i = 0; i < sortedStats.size(); ++i) {
+
+		const auto &stat = sortedStats[i];
+
+		DrawString(out, StrCat(i, "."), Rectangle(pos, Size { 20, 16 }), { .flags = UiFlags::AlignRight });
+
+		DrawString(out, MaskTypeToString(stat.first.maskType), { pos.x + 24, pos.y });
+
+		DrawString(out, TileTypeToString(stat.first.tileType), { pos.x + 184, pos.y });
+
+		DrawString(out, FormatInteger(stat.second), Rectangle({ pos.x + 354, pos.y }, Size(40, 16)), { .flags = UiFlags::AlignRight });
+
+		pos.y += 16;
+
+	}
+
+#endif
+
+}
+
+
+
+/**
+
+ * @brief Start rendering of screen, town variation
+
+ * @param out Buffer to render to
+
+ * @param startPosition Center of view in dPiece coordinates
+
+ */
+
+void DrawView(const Surface &out, Point startPosition, bool readingMenu)
 {
 #ifdef _DEBUG
 	DebugCoordsMap.clear();
 #endif
 	Displacement offset = {};
 	CalcFirstTilePosition(startPosition, offset);
-	DrawGame(out, startPosition, offset);
+	DrawGame(out, startPosition, offset, readingMenu);
 	if (AutomapActive) {
 		DrawAutomap(out.subregionY(0, gnViewportHeight));
 	}
@@ -1890,7 +2004,11 @@ void DrawAndBlit()
 	nthread_UpdateProgressToNextGameTick();
 
 	this_sdl_thread::yield();
-	DrawView(out, ViewPosition);
+#ifdef __DSI__
+	DrawView(out, ViewPosition, readingMenu);
+#else
+	DrawView(out, ViewPosition, false);
+#endif
 	if (drawCtrlPan) {
 		DrawMainPanel(out);
 	}

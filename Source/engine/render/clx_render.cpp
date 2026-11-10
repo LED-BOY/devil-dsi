@@ -405,6 +405,10 @@ void UpdateOutlinePixelsCache(ClxSprite sprite)
 template <bool SkipColorIndexZero>
 void RenderClxOutline(const Surface &out, Point position, ClxSprite sprite, uint8_t color)
 {
+#ifdef __DSI__
+	// Outline pixels extend one pixel outside the source rectangle.
+	if (!DsiSpriteVisible(position.x - 1, position.y + 1, sprite.width() + 2, sprite.height() + 2, out.w(), out.h())) return;
+#endif
 	UpdateOutlinePixelsCache<SkipColorIndexZero>(sprite);
 	--position.x;
 	position.y -= sprite.height();
@@ -586,11 +590,21 @@ std::string ClxDescribe(ClxSprite clx)
 
 void ClxDraw(const Surface &out, Point position, ClxSprite clx)
 {
+#ifdef __DSI__
+	if (DsiDrawCachedClx(out.begin(), out.pitch(), out.w(), out.h(), position.x, position.y,
+	        clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), nullptr)) return;
+#endif
+
 	DoRenderBackwards(out, position, clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), BlitDirect {});
 }
 
 void ClxDrawTRN(const Surface &out, Point position, ClxSprite clx, const uint8_t *trn)
 {
+#ifdef __DSI__
+	if (DsiDrawCachedClx(out.begin(), out.pitch(), out.w(), out.h(), position.x, position.y,
+	        clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), trn)) return;
+#endif
+
 	DoRenderBackwards(out, position, clx.pixelData(), clx.pixelDataSize(), clx.width(), clx.height(), BlitWithMap { trn });
 }
 
@@ -626,6 +640,9 @@ void ClxDrawOutlineSkipColorZero(const Surface &out, uint8_t col, Point position
 
 void ClearClxDrawCache()
 {
+#ifdef __DSI__
+	DsiClearSpriteCache();
+#endif
 	OutlinePixelsCache.spriteData = nullptr;
 }
 

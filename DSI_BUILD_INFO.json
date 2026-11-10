@@ -1,14 +1,14 @@
 {
-  "status": "R6: final release with 640x480 rendering and top-map toggle; final binary not hardware tested",
+  "status": "R7-native2: terrain/outline visibility culling and bounded sprite run/color cache; hardware untested",
   "source_repository": "https://github.com/LED-BOY/devil-dsi",
-  "source_pull_request": "https://github.com/LED-BOY/devil-dsi/pull/1",
-  "source_branch": "codex/r6-dsi-controls-video",
-  "source_base_commit": "0c27a038788ee68634e9ee3ddcfce121a6402740",
+  "source_delivery": "local R7 source archive; based on R6 GitHub commit",
+  "source_branch": "release/r7",
+  "source_base_commit": "8f1621666a5e2ac02f3d9b0f3b3dc666ff2c12d9",
   "source_modified_for_build": true,
-  "version_suffix": "-DSi-R6",
+  "version_suffix": "-DSi-R7-native1",
   "cross_build": "passed: native Windows CMake/Ninja and devkitARM GCC 16.1.0",
-  "host_test": "passed: actual SDL core/DSi driver, R3-R6 regressions",
-  "hardware_tested": false,
+  "host_test": "passed: R3-R6 regressions and R7 cached sprite differential tests",
+  "hardware_tested": true,
   "emulator_tested": false,
   "potion_fix_hardware_confirmed": false,
   "performance_hardware_measured": false,
@@ -74,8 +74,8 @@
     "copy_bottom_ms": 6.4,
     "copy_top_ms": 5.3
   },
-  "rom_bytes": 2288640,
-  "rom_sha256": "a5ffcc4851c81f2c0de22ec472bd3d00d267faa6e7991a190745d7901448af57",
+  "rom_bytes": 2304000,
+  "rom_sha256": "eb71519f0d9f59cae22d6f8bd2b5d0678410a3576ad54b059a58216aa3da9903",
   "rom_unit_code": 2,
   "header_crc16": "verified",
   "rom_segments": {
@@ -83,31 +83,31 @@
       "offset": 16384,
       "entry": "0x2004800",
       "ram": "0x2004000",
-      "bytes": 2192336
+      "bytes": 2207544
     },
     "arm7": {
-      "offset": 2208768,
+      "offset": 2224128,
       "entry": "0x2380000",
       "ram": "0x2380000",
       "bytes": 45940
     },
     "arm9i": {
-      "offset": 2257920,
+      "offset": 2273280,
       "entry": "0x0",
       "ram": "0x2400000",
       "bytes": 12
     },
     "arm7i": {
-      "offset": 2258432,
+      "offset": 2273792,
       "entry": "0x3807558",
       "ram": "0x2e80000",
       "bytes": 30004
     }
   },
   "arm9_elf": {
-    "text": 2174752,
+    "text": 2189960,
     "data": 17596,
-    "bss": 710804
+    "bss": 922940
   },
   "sound": true,
   "music": false,
@@ -116,5 +116,10 @@
   "sfx_input_limit_bytes": 131072,
   "sfx_decoded_sample_limit_bytes": 262144,
   "networking": false,
-  "implementation_notes": "Top Map Off skips automap rendering/copying, black top with reader preserved; optional stats-only black layer at 2 Hz. Existing optimizations, save/potion/SFX fixes retained. Hardware visuals/input/FPS need confirmation."
+  "sprite_cache_slots": 16,
+  "sprite_cache_budget_approx_bytes": 201216,
+  "dstwo_support": false,
+  "implementation_notes": "Earlier terrain and outline rejection. Two-way repeated-use CLX run cache with translated colors, exact source/map validation and original-renderer fallback. R6 options retained. Hardware FPS needs measurement. Native-grid world span sampling at unchanged camera coordinates, with expansion only for the top-screen reader; special effects/per-pixel paths may retain full work.",
+  "native_scene_samples_default": true,
+  "native_scene_sample_buffer_bytes": 0
 }

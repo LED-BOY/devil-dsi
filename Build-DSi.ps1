@@ -13,7 +13,7 @@ try {
     $configureArguments = @('-S', $PSScriptRoot, '-B', $buildDirectory, '-G', 'Ninja',
         "-DCMAKE_MAKE_PROGRAM=$ninjaPath",
         '-DCMAKE_TOOLCHAIN_FILE=CMake/platforms/dsi.toolchain.cmake',
-        '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DVERSION_SUFFIX=-DSi')
+        '-DCMAKE_BUILD_TYPE=MinSizeRel', '-DVERSION_SUFFIX=-DSi-R7')
     $vendorDirectory = Join-Path $PSScriptRoot 'dsi-vendor'
     if (Test-Path -LiteralPath $vendorDirectory) {
         Get-ChildItem -LiteralPath $vendorDirectory -Directory | ForEach-Object {
