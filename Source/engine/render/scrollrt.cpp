@@ -218,9 +218,16 @@ uint32_t lastFpsUpdateInMs;
 
 Rectangle PrevCursorRect;
 
-void BlitCursor(uint8_t *dst, uint32_t dstPitch, uint8_t *src, uint32_t srcPitch, uint32_t srcWidth, uint32_t srcHeight)
+void BlitCursor(uint8_t *dst, uint32_t dstPitch, uint8_t *src, uint32_t srcPitch,
+    uint32_t srcWidth, uint32_t srcHeight, [[maybe_unused]] bool restore)
 {
 	for (std::uint32_t i = 0; i < srcHeight; ++i, src += srcPitch, dst += dstPitch) {
+#ifdef __DSI__
+		if (DsiSceneSampling && (restore
+		        ? DsiSampleSpan(dst, src, srcWidth, 0, nullptr, nullptr, 0)
+		        : DsiReadPackedSpan(dst, src, srcWidth)))
+			continue;
+#endif
 		memcpy(dst, src, srcWidth);
 	}
 }
@@ -231,7 +238,7 @@ void BlitCursor(uint8_t *dst, uint32_t dstPitch, uint8_t *src, uint32_t srcPitch
 void UndrawCursor(const Surface &out)
 {
 	DrawnCursor &cursor = GetDrawnCursor();
-	BlitCursor(&out[cursor.rect.position], out.pitch(), cursor.behindBuffer, cursor.rect.size.width, cursor.rect.size.width, cursor.rect.size.height);
+	BlitCursor(&out[cursor.rect.position], out.pitch(), cursor.behindBuffer, cursor.rect.size.width, cursor.rect.size.width, cursor.rect.size.height, true);
 	PrevCursorRect = cursor.rect;
 }
 
@@ -331,7 +338,7 @@ void DrawCursor(const Surface &out)
 	if (rect.size.width == 0 || rect.size.height == 0)
 		return;
 
-	BlitCursor(cursor.behindBuffer, rect.size.width, &out[rect.position], out.pitch(), rect.size.width, rect.size.height);
+	BlitCursor(cursor.behindBuffer, rect.size.width, &out[rect.position], out.pitch(), rect.size.width, rect.size.height, false);
 	DrawSoftwareCursor(out, cursPosition + Displacement { 0, cursSize.height - 1 }, pcurs);
 }
 
@@ -1356,7 +1363,9 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset, [[may
 
 
 #ifdef __DSI__
-	if (*GetOptions().Dsi.nativeScene && !*GetOptions().Graphics.zoom)
+	const bool sampleLogicalScene = !DsiSceneSampling && *GetOptions().Dsi.nativeScene
+	    && !*GetOptions().Graphics.zoom && !*GetOptions().Graphics.perPixelLighting;
+	if (sampleLogicalScene)
 		DsiBeginSceneSamples(out.begin(), out.pitch(), out.w(), fullOut.h(), out.h());
 #endif
 	DrawFloor(out, lightmap, position, Point {} + offset, rows, columns);
@@ -1365,7 +1374,8 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset, [[may
 
 	DrawOOB(out, lightmap, position, Point {} + offset, rows, columns);
 #ifdef __DSI__
-	DsiEndSceneSamples(readingMenu);
+	if (sampleLogicalScene)
+		DsiEndSceneSamples(readingMenu);
 #endif
 
 
@@ -1858,6 +1868,9 @@ void ClearScreenBuffer()
 		return;
 
 	assert(PalSurface != nullptr);
+#ifdef __DSI__
+	DsiDiscardPackedScene();
+#endif
 	SDL_FillSurfaceRect(PalSurface, nullptr, 0);
 }
 
@@ -1941,6 +1954,10 @@ void scrollrt_draw_game_screen()
 	}
 
 	const Surface &out = GlobalBackBuffer();
+#ifdef __DSI__
+	if (ShouldShowCursor() || GetDrawnCursor().rect.size.height != 0)
+		DsiRestorePackedScene();
+#endif
 	UndrawCursor(out);
 	DrawCursor(out);
 	DrawMain(hgt, false, false, false, false, false);
@@ -1999,7 +2016,26 @@ void DrawAndBlit()
 	}
 
 	const Surface &out = GlobalBackBuffer();
+#ifdef __DSI__
+	bool packedScene = false;
+#ifndef _DEBUG
+	// These paths can read or change the logical framebuffer directly.
+	packedScene = !readingMenu && !AutomapActive && !DoomFlag && !MyPlayerIsDead
+	    && *GetOptions().Dsi.nativeScene && !*GetOptions().Graphics.zoom
+	    && !*GetOptions().Graphics.perPixelLighting && out.w() == 640 && out.h() == 480;
+#endif
+	unsigned previousRows;
+	const bool previousPacked = packedScene && DsiPackedScene(out.begin(), out.pitch(), &previousRows);
+	if (!packedScene) DsiRestorePackedScene();
+	// Undraw the cursor into the same buffer that held the previous frame.
+	if (previousPacked)
+		packedScene = DsiBeginPackedScene(out.begin(), out.pitch(), out.w(), out.h(), gnViewportHeight);
+#endif
 	UndrawCursor(out);
+#ifdef __DSI__
+	if (packedScene && !previousPacked)
+		packedScene = DsiBeginPackedScene(out.begin(), out.pitch(), out.w(), out.h(), gnViewportHeight);
+#endif
 
 	nthread_UpdateProgressToNextGameTick();
 
@@ -2048,6 +2084,9 @@ void DrawAndBlit()
 
 	lua::GameDrawComplete();
 
+#ifdef __DSI__
+	if (packedScene) DsiEndSceneSamples(0);
+#endif
 	this_sdl_thread::yield();
 	DrawMain(hgt, drawInfoBox, drawHealth, drawMana, drawBelt, drawControlButtons);
 
@@ -2076,7 +2115,7 @@ void DrawAndBlit()
 			if (DsiPerfEnabled()) {
 				DsiPerfStats stats {};
 				DsiPerfGetStats(&stats);
-				SDL_Rect statsBounds { 0, 0, DSI_WIDTH, 44 };
+				SDL_Rect statsBounds { 0, 0, DSI_WIDTH, 58 };
 				SDL_FillRect(mapSurface.get(), &statsBounds, 0);
 				const Surface mapOut(mapSurface.get());
 				DrawString(mapOut, StrCat("FPS ", stats.fps10 / 10, ".", stats.fps10 % 10), Point { 2, 2 });
@@ -2084,6 +2123,8 @@ void DrawAndBlit()
 				    " Map ", stats.microseconds[DSI_PERF_MAP] / 1000, ".", stats.microseconds[DSI_PERF_MAP] / 100 % 10, " ms"), Point { 2, 16 });
 				DrawString(mapOut, StrCat("Copy B ", stats.microseconds[DSI_PERF_BOTTOM] / 1000, ".", stats.microseconds[DSI_PERF_BOTTOM] / 100 % 10,
 				    " T ", stats.microseconds[DSI_PERF_TOP] / 1000, ".", stats.microseconds[DSI_PERF_TOP] / 100 % 10, " ms"), Point { 2, 30 });
+				DrawString(mapOut, StrCat("Peak ", stats.peak_us / 1000,
+				    " L ", stats.peak_logic_us / 1000, " D ", stats.peak_draw_us / 1000, " ms"), Point { 2, 44 });
 			}
 			DsiMapReady();
 			DsiPerfRecord(DSI_PERF_MAP, mapStarted);

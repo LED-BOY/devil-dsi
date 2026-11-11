@@ -260,10 +260,10 @@ DsiOptions::DsiOptions()
           { { DSI_L_HEALTH_POTION, N_("Use Health Potion") }, { DSI_L_RIGHT_MOUSE, N_("Right Mouse Button") }, { DSI_L_CONTROLLER, N_("Controller Shoulder") }, { DSI_L_DISABLED, N_("Disabled") } })
     , mapRefresh("Map Refresh", OptionEntryFlags::None, N_("Top Map Refresh"), N_("Lower refresh rates reduce top-map drawing and copying without limiting gameplay FPS."), 15,
           { { 10, "10 Hz" }, { 15, "15 Hz" }, { 0, N_("Every Frame") } })
-    , performanceStats("Performance Stats", OptionEntryFlags::None, N_("Performance Stats"), N_("Show gameplay FPS and average drawing/copy times on the top map. No per-frame SD logging."), false)
+    , performanceStats("Performance Stats", OptionEntryFlags::None, N_("Performance Stats"), N_("Show gameplay FPS, average drawing and copy times, and the slowest frame on the top screen."), false)
     , topMap("Top Map", OptionEntryFlags::None, N_("Top Map"), N_("Show the gameplay map. Off skips map drawing and copying; menu reading zoom is kept. Performance Stats can still show on black."), true)
     , soundEffects("Sound Effects", OptionEntryFlags::None, N_("Sound Effects"), N_("Experimental DSi hardware sound effects. Music and movie audio are not supported. Turn off to reduce memory and CPU use."), true)
-    , nativeScene("Native Scene Samples", OptionEntryFlags::None, N_("Native Scene Samples"), N_("Draw world pixels on the DSi display grid without changing the camera. Disable to compare full rendering. Requires the standard 640x480 layout and Graphics Zoom off."), true)
+    , nativeScene("Native Scene Samples", OptionEntryFlags::None, N_("Native Scene Samples"), N_("Render gameplay on the 256x192 display grid without changing the camera. Requires the standard layout with Graphics Zoom and Per-Pixel Lighting off."), true)
     , shoulderDefaultsVersion("Shoulder Defaults Version", OptionEntryFlags::Invisible, "Shoulder Defaults Version", "DSi shoulder default migration version.", 0, { 0, 1 })
 {
 	menuZoom.SetValueChangedCallback(ApplyDsiOptions);

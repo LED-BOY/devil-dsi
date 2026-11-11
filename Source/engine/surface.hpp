@@ -21,6 +21,9 @@
 #include "engine/point.hpp"
 #include "utils/sdl_geometry.h"
 #include "utils/sdl_wrap.h"
+#ifdef __DSI__
+#include "platform/dsi/dsi_render.h"
+#endif
 
 namespace devilution {
 
@@ -87,8 +90,14 @@ struct Surface {
 	 */
 	void SetPixel(Point position, std::uint8_t col) const
 	{
-		if (InBounds(position))
-			(*this)[position] = col;
+		if (!InBounds(position))
+			return;
+		uint8_t *pixel = at(position.x, position.y);
+#ifdef __DSI__
+		if (DsiSceneSampling && DsiSampleSpan(pixel, nullptr, 1, col, nullptr, nullptr, 0))
+			return;
+#endif
+		*pixel = col;
 	}
 
 	/**

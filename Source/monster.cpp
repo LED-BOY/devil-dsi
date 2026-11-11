@@ -3543,6 +3543,9 @@ std::expected<void, std::string> InitMonsterSND(CMonster &monsterType)
 			char path[64];
 			*BufCopy(path, "monsters\\", soundSuffix, prefix, j + 1, ".wav") = '\0';
 			ASSIGN_OR_RETURN(monsterType.sounds[i][j], SoundFileLoadWithStatus(path));
+#ifdef __DSI__
+			monsterType.sounds[i][j]->DSB.WarmAsMonsterSound();
+#endif
 		}
 	}
 	return {};

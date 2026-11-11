@@ -296,6 +296,10 @@ void gamemenu_quit_game(bool bActivate)
 
 void gamemenu_load_game(bool /*bActivate*/)
 {
+#ifdef __DSI__
+	gamemenu_off();
+	RequestDsiSavedGameReload();
+#else
 	EventHandler saveProc = SetEventHandler(DisableInputEventHandler);
 	gamemenu_off();
 	ClearFloatingNumbers();
@@ -330,6 +334,7 @@ void gamemenu_load_game(bool /*bActivate*/)
 	NewCursor(CURSOR_HAND);
 	interface_msg_pump();
 	SetEventHandler(saveProc);
+#endif
 }
 
 void gamemenu_save_game(bool /*bActivate*/)

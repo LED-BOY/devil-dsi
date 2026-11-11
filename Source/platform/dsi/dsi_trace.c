@@ -6,14 +6,15 @@
 static int ready;
 static unsigned lines;
 
-void DsiTraceInit(void)
+void DsiTraceInit(const char *version)
 {
     FILE *file = fopen("sd:/devilutionx/dsi-startup.txt", "w");
     if (!file) {
         printf("Cannot create dsi-startup.txt\n");
         return;
     }
-    fputs("DSi engine R7: native scene samples\n"
+    fprintf(file, "DSi engine %s\n", version);
+    fputs(
           "heap_used/heap_free_in_arena/arena_bytes describe malloc's arena,\n"
           "not all free DSi RAM. File is reset on each launch.\n", file);
     fclose(file);

@@ -40,10 +40,59 @@ int dsi_source_coordinate(int coordinate, int screen_extent, int source_extent)
         / (unsigned)screen_extent);
 }
 
+static inline void copy_native_row(const uint8_t *row, volatile uint16_t *output)
+{
+    if ((((uintptr_t)row | (uintptr_t)output) & 3) == 0) {
+        const WordPixels *source = (const WordPixels *)row;
+        volatile WordPixels *words = (volatile WordPixels *)output;
+#if defined(ARM9) && defined(__arm__) && !defined(__thumb__)
+        const WordPixels *end = source + DSI_WIDTH / 4;
+        /* Both addresses are word-aligned. Batch eight words without
+         * introducing byte stores to background VRAM. */
+        __asm__ volatile (
+            "1:\n\t"
+            "ldmia %[src]!, {r0-r3}\n\t"
+            "stmia %[dst]!, {r0-r3}\n\t"
+            "ldmia %[src]!, {r0-r3}\n\t"
+            "stmia %[dst]!, {r0-r3}\n\t"
+            "cmp %[src], %[end]\n\t"
+            "bne 1b"
+            : [src] "+&r"(source), [dst] "+&r"(words)
+            : [end] "r"(end)
+            : "r0", "r1", "r2", "r3", "cc", "memory");
+#else
+        for (int x = 0; x < DSI_WIDTH / 4; ++x)
+            words[x] = source[x];
+#endif
+    } else if (((uintptr_t)output & 3) == 0) {
+        volatile WordPixels *words = (volatile WordPixels *)output;
+        for (int x = 0; x < DSI_WIDTH; x += 4)
+            words[x / 4] = (uint32_t)row[x] | (uint32_t)row[x + 1] << 8
+                | (uint32_t)row[x + 2] << 16 | (uint32_t)row[x + 3] << 24;
+    } else {
+        for (int x = 0; x < DSI_WIDTH; x += 2)
+            output[x / 2] = (uint16_t)(row[x] | (uint16_t)row[x + 1] << 8);
+    }
+}
+
+static inline void copy_scaled_row(const uint8_t *row, const unsigned *sample_x, volatile uint16_t *output)
+{
+    if (((uintptr_t)output & 3) == 0) {
+        volatile WordPixels *words = (volatile WordPixels *)output;
+        for (int x = 0; x < DSI_WIDTH; x += 4)
+            words[x / 4] = (uint32_t)row[sample_x[x]]
+                | (uint32_t)row[sample_x[x + 1]] << 8
+                | (uint32_t)row[sample_x[x + 2]] << 16
+                | (uint32_t)row[sample_x[x + 3]] << 24;
+    } else {
+        for (int x = 0; x < DSI_WIDTH; x += 2)
+            output[x / 2] = (uint16_t)(row[sample_x[x]] | (uint16_t)row[sample_x[x + 1]] << 8);
+    }
+}
+
 DSI_HOT int dsi_present_index8(const uint8_t *source, int width, int height,
     size_t source_pitch, volatile uint16_t *destination, size_t destination_pitch)
 {
-    int x, y;
     if (source == NULL || destination == NULL || width <= 0 || height <= 0
         || source_pitch < (size_t)width || destination_pitch < DSI_WIDTH / 2)
         return 0;
@@ -52,41 +101,32 @@ DSI_HOT int dsi_present_index8(const uint8_t *source, int width, int height,
         || destination_pitch > (SIZE_MAX / sizeof(uint16_t) - DSI_WIDTH / 2)
                 / (DSI_HEIGHT - 1))
         return 0;
-    /* Native top map: avoid coordinate lookup/gather for every pixel. Keep
-     * halfword VRAM stores and byte source reads (unaligned sources are valid). */
     if (width == DSI_WIDTH && height == DSI_HEIGHT) {
-        for (y = 0; y < DSI_HEIGHT; ++y) {
-            const uint8_t *row = source + (size_t)y * source_pitch;
-            volatile uint16_t *output = destination + (size_t)y * destination_pitch;
-            if (((uintptr_t)output & 3) == 0) {
-                volatile WordPixels *words = (volatile WordPixels *)output;
-                for (x = 0; x < DSI_WIDTH; x += 4)
-                    words[x / 4] = (uint32_t)row[x] | (uint32_t)row[x + 1] << 8
-                        | (uint32_t)row[x + 2] << 16 | (uint32_t)row[x + 3] << 24;
-                continue;
-            }
-            for (x = 0; x < DSI_WIDTH; x += 2)
-                output[x / 2] = (uint16_t)(row[x] | (uint16_t)row[x + 1] << 8);
-        }
+        for (int y = 0; y < DSI_HEIGHT; ++y)
+            copy_native_row(source + (size_t)y * source_pitch, destination + (size_t)y * destination_pitch);
         return 1;
     }
     prepare_table(&overview_table, width, height);
-    for (y = 0; y < DSI_HEIGHT; ++y) {
-        const uint8_t *row = source
-            + (size_t)overview_table.y[y] * source_pitch;
-        volatile uint16_t *output = destination + (size_t)y * destination_pitch;
-        if (((uintptr_t)output & 3) == 0) {
-            volatile WordPixels *words = (volatile WordPixels *)output;
-            for (x = 0; x < DSI_WIDTH; x += 4)
-                words[x / 4] = (uint32_t)row[overview_table.x[x]]
-                    | (uint32_t)row[overview_table.x[x + 1]] << 8
-                    | (uint32_t)row[overview_table.x[x + 2]] << 16
-                    | (uint32_t)row[overview_table.x[x + 3]] << 24;
-            continue;
-        }
-        for (x = 0; x < DSI_WIDTH; x += 2)
-            output[x / 2] = (uint16_t)(row[overview_table.x[x]] | (uint16_t)row[overview_table.x[x + 1]] << 8);
-    }
+    for (int y = 0; y < DSI_HEIGHT; ++y)
+        copy_scaled_row(source + (size_t)overview_table.y[y] * source_pitch,
+            overview_table.x, destination + (size_t)y * destination_pitch);
+    return 1;
+}
+
+DSI_HOT int dsi_present_game_index8(const uint8_t *canvas, unsigned pitch,
+    const uint8_t *scene, unsigned rows, volatile uint16_t *destination, size_t destination_pitch)
+{
+    if (!canvas || !scene || !destination || rows > DSI_HEIGHT || pitch < 640
+        || (size_t)pitch > (SIZE_MAX - 639) / 479
+        || destination_pitch < DSI_WIDTH / 2
+        || destination_pitch > (SIZE_MAX / sizeof(uint16_t) - DSI_WIDTH / 2) / (DSI_HEIGHT - 1))
+        return 0;
+    for (unsigned y = 0; y < rows; ++y)
+        copy_native_row(scene + y * DSI_WIDTH, destination + y * destination_pitch);
+    prepare_table(&overview_table, 640, 480);
+    for (unsigned y = rows; y < DSI_HEIGHT; ++y)
+        copy_scaled_row(canvas + (size_t)overview_table.y[y] * pitch,
+            overview_table.x, destination + y * destination_pitch);
     return 1;
 }
 

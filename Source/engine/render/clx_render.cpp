@@ -415,7 +415,12 @@ void RenderClxOutline(const Surface &out, Point position, ClxSprite sprite, uint
 	if (position.x >= 0 && position.x + sprite.width() + 2 < out.w()
 	    && position.y >= 0 && position.y + sprite.height() + 2 < out.h()) {
 		for (const auto &[x, y] : OutlinePixelsCache.outlinePixels) {
-			*out.at(position.x + x, position.y + y) = color;
+			uint8_t *pixel = out.at(position.x + x, position.y + y);
+#ifdef __DSI__
+			if (DsiSceneSampling && DsiSampleSpan(pixel, nullptr, 1, color, nullptr, nullptr, 0))
+				continue;
+#endif
+			*pixel = color;
 		}
 	} else {
 		for (const auto &[x, y] : OutlinePixelsCache.outlinePixels) {

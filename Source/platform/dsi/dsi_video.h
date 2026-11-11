@@ -29,9 +29,13 @@ int DsiTopMapEnabled(void);
 int DsiMapNeedsRedraw(void);
 void DsiMapReady(void);
 enum DsiPerfStage { DSI_PERF_RENDER, DSI_PERF_MAP, DSI_PERF_BOTTOM, DSI_PERF_TOP, DSI_PERF_COUNT };
-struct DsiPerfStats { unsigned fps10, microseconds[DSI_PERF_COUNT]; };
+struct DsiPerfStats {
+    unsigned fps10, microseconds[DSI_PERF_COUNT];
+    unsigned peak_us, peak_logic_us, peak_draw_us;
+};
 int DsiPerfEnabled(void);
 uint64_t DsiPerfClock(void);
+void DsiPerfRecordLogic(uint64_t start);
 void DsiPerfBeginFrame(void);
 void DsiPerfRecord(enum DsiPerfStage stage, uint64_t start);
 void DsiPerfEndFrame(void);
@@ -46,6 +50,11 @@ int dsi_source_coordinate(int screen_coordinate, int screen_extent, int source_e
  * Returns zero for invalid arguments, without touching the destination. */
 int dsi_present_index8(const uint8_t *source, int width, int height,
     size_t source_pitch, volatile uint16_t *destination, size_t destination_pitch);
+
+/* The packed viewport provides the first rows. The HUD is sampled from the
+ * logical canvas below it, since its parts are redrawn independently. */
+int dsi_present_game_index8(const uint8_t *canvas, unsigned pitch,
+    const uint8_t *scene, unsigned rows, volatile uint16_t *destination, size_t destination_pitch);
 
 uint16_t dsi_palette_color(uint8_t red, uint8_t green, uint8_t blue);
 

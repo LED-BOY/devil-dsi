@@ -15,7 +15,7 @@ assert 0x1ff8020 <= address < address + size <= 0x2000000, 'ITCM overflow/vector
 assert 0x2000000 <= load < 0x3000000, 'ITCM must have a main-RAM load image'
 symbols = run('arm-none-eabi-nm', '-S')
 required = ['DsiBlitMapped', 'DsiBlitBlended', 'DsiBlitBlendedMapped',
-            'DsiFillBlended', 'dsi_present_index8', 'dsi_present_reading_index8']
+            'DsiFillBlended', 'DsiSampleSpan', 'dsi_present_index8', 'dsi_present_game_index8', 'dsi_present_reading_index8']
 result = {}
 for name in required:
     m = re.search(r'^([0-9a-f]+)\s+([0-9a-f]+)\s+T\s+'+name+r'$', symbols, re.M)
@@ -26,6 +26,9 @@ for name in required:
     assert re.search(r'^\s*[0-9a-f]+:\s+[0-9a-f]{8}\s+', code, re.M), 'Expected ARM instructions: '+name
     if name.startswith('dsi_present_'):
         assert re.search(r'\bstr\s', code) and re.search(r'\bstrh\s', code), 'Need both word and halfword VRAM paths'
+    if name in ('dsi_present_index8', 'dsi_present_game_index8'):
+        assert re.search(r'\bldm(?:ia)?\s+\w+!, \{r0, r1, r2, r3\}', code), 'Missing aligned ARM block load'
+        assert re.search(r'\bstm(?:ia)?\s+\w+!, \{r0, r1, r2, r3\}', code), 'Missing aligned ARM block store'
     result[name] = {'address':hex(start), 'bytes':length}
 
 cache = re.search(r'^([0-9a-f]+)\s+([0-9a-f]+)\s+[bB]\s+sprite_cache$', symbols, re.M)
@@ -34,6 +37,6 @@ assert int(cache.group(2), 16) <= 256 * 1024, 'R7 cache exceeds static RAM budge
 for name in ['DsiSpriteVisible', 'DsiDrawCachedClx', 'DsiClearSpriteCache']:
     assert re.search(r'\sT\s+' + name + r'$', symbols, re.M), 'Missing R7 path ' + name
 
-print('PASS: six ARM kernels in loaded ITCM; word/halfword stores retained; vector/32 KiB budget respected')
+print('PASS: eight ARM kernels in loaded ITCM; block and fallback VRAM stores verified; vector/32 KiB budget respected')
 print(json.dumps({'itcm_bytes':size, 'itcm_available_bytes':0x7fe0,
                   'load_address':hex(load), 'kernels':result}, indent=2))

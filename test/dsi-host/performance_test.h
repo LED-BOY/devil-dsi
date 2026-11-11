@@ -70,10 +70,26 @@ static int CheckPerformance(SDL_Surface *screen)
         || stats.microseconds[DSI_PERF_RENDER] != 20000
         || stats.microseconds[DSI_PERF_MAP] != 1000
         || stats.microseconds[DSI_PERF_BOTTOM] != 3000) return 0;
+    if (stats.peak_us != 50000 || stats.peak_logic_us != 0 || stats.peak_draw_us != 20000) return 0;
+    DsiSetTopView(DSI_TOP_MENU);
+    host_ticks += 5000000; /* A pause must not be counted as a slow frame. */
+    DsiSetTopView(DSI_TOP_MAP);
+    DsiPerfBeginFrame(); host_ticks += 1000; DsiPerfEndFrame();
+    DsiPerfGetStats(&stats);
+    if (stats.peak_us != 50000) return 0;
+    uint64_t start = DsiPerfClock(); host_ticks += 75000;
+    DsiPerfRecordLogic(start);
+    DsiPerfBeginFrame();
+    start = DsiPerfClock(); host_ticks += 40000;
+    DsiPerfRecord(DSI_PERF_RENDER, start);
+    host_ticks += 30000;
+    DsiPerfEndFrame();
+    DsiPerfGetStats(&stats);
+    if (stats.peak_us != 145000 || stats.peak_logic_us != 75000 || stats.peak_draw_us != 40000) return 0;
     DsiConfigurePerformance(15, 0);
     DsiPerfGetStats(&stats);
-    if (DsiPerfEnabled() || DsiPerfClock() || stats.fps10) return 0;
-    puts("PASS: map 10/15 Hz/every-frame deadlines, VRAM copy gating, bottom independence, settings/view/loading invalidation, tick wrap and profiling averages");
+    if (DsiPerfEnabled() || DsiPerfClock() || stats.fps10 || stats.peak_us) return 0;
+    puts("PASS: map 10/15 Hz/every-frame deadlines, VRAM copy gating, bottom independence, settings/view/loading invalidation, tick wrap, profiling averages and peak logic/draw timing");
     return 1;
 }
 

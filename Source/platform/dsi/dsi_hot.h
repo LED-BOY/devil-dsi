@@ -4,7 +4,9 @@
  * The CMake file compiles these kernels as ARM/O2. Host tests use plain C. */
 #if defined(ARM9) && defined(__arm__)
 #define DSI_HOT __attribute__((section(".itcm"), long_call, noinline))
+#define DSI_INLINE inline __attribute__((always_inline))
 #else
 #define DSI_HOT
+#define DSI_INLINE inline
 #endif
 #endif

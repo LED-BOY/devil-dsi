@@ -23,6 +23,15 @@ void SurfaceBlit(const Surface &src, SDL_Rect srcRect, const Surface &dst, Point
 	const auto dstPitch = dst.pitch();
 
 	for (unsigned h = srcRect.h; h != 0; --h) {
+#ifdef __DSI__
+		if (DsiSceneSampling && (SkipColorIndexZero
+		        ? DsiSampleKeyedSpan(dstBuf, srcBuf, srcRect.w)
+		        : DsiSampleSpan(dstBuf, srcBuf, srcRect.w, 0, nullptr, nullptr, 0))) {
+			srcBuf += srcPitch;
+			dstBuf += dstPitch;
+			continue;
+		}
+#endif
 		if (SkipColorIndexZero) {
 			for (unsigned w = srcRect.w; w != 0; --w) {
 				if (*srcBuf != 0)

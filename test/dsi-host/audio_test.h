@@ -85,7 +85,30 @@ static int CheckAudio(void)
         || DsiAudioPlay(&owners[0],"mono",0,0,0)) return 0;
     DsiAudioSetEnabled(1);
     if (!DsiAudioPlay(&owners[0],"mono",0,0,0)) return 0;
+    DsiAudioQuit(); DsiAudioInit();
+    const uint64_t saved_ticks = host_ticks;
+    host_ticks = (uint64_t)0xfffffff0u * 1000;
+    opens = fixture_opens;
+    if (!DsiAudioWarm("warmed-monster") || fixture_opens != opens + 1 || host_sound_active) return 0;
+    if (!DsiAudioPlayMonster(&owners[0], "cold-monster-a", 0, 0, 0) || fixture_opens != opens + 2) return 0;
+    if (!DsiAudioPlayMonster(&owners[1], "warmed-monster", 0, 0, 0) || fixture_opens != opens + 2) return 0;
+    host_ticks += 149000; /* Cross the 32-bit SDL tick wrap. */
+    if (DsiAudioPlayMonster(&owners[2], "cold-monster-b", 0, 0, 0) || fixture_opens != opens + 2) return 0;
+    host_ticks += 1000;
+    if (!DsiAudioPlayMonster(&owners[2], "cold-monster-b", 0, 0, 0) || fixture_opens != opens + 3) return 0;
+    for (int i = 3; i < 16; ++i)
+        if (!DsiAudioPlayMonster(&owners[i], "warmed-monster", 0, 0, 0)) return 0;
+    host_ticks += 200000;
+    if (DsiAudioPlayMonster(&owners[16], "cold-monster-c", 0, 0, 0) || fixture_opens != opens + 3) return 0;
+    DsiAudioClearCache();
+    if (host_sound_active || DsiAudioCacheBytes() || DsiAudioIsPlaying(&owners[0])) return 0;
+    if (!DsiAudioPlayMonster(&owners[0], "cold-monster-after-reload", 0, 0, 0)
+        || fixture_opens != opens + 4) return 0;
+    puts("PASS: session reload stops active voices and frees samples while keeping sound enabled");
     DsiAudioQuit();
+    if (DsiAudioWarm("disabled-warmup") || fixture_opens != opens + 4) return 0;
+    host_ticks = saved_ticks;
+    puts("PASS: warmed monster sounds avoid combat reads; cold loads are paced across tick wrap and skipped at the voice limit");
     puts("PASS: hardware SFX path: SDL PCM8/stereo16/IMA decode, samples/gain/pan, cache reuse/eviction/pinning, voice limit, mute/missing/oversize and shutdown");
     return 1;
 }

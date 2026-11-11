@@ -7,6 +7,7 @@
 #include <SDL_events_c.h>
 #include <stdio.h>
 #include "dsi_video.h"
+#include "dsi_render.h"
 #include "dsi_trace.h"
 
 struct SDL_PrivateVideoData { void *pixels; int bg; };
@@ -39,7 +40,7 @@ void DsiConfigureMap(int enabled)
 int DsiTopMapEnabled(void) { return map_enabled; }
 static Uint32 map_updated;
 static int perf_enabled, perf_active;
-static u64 perf_window;
+static u64 perf_window, perf_last_frame, perf_pending_logic, perf_frame_logic;
 static unsigned perf_frames;
 static u64 perf_current[DSI_PERF_COUNT], perf_total[DSI_PERF_COUNT];
 static struct DsiPerfStats perf_stats;
@@ -52,6 +53,7 @@ void DsiConfigurePerformance(int hz, int show_stats)
     if (perf_enabled == !!show_stats) return;
     perf_enabled = !!show_stats;
     perf_active = perf_frames = 0;
+    perf_last_frame = perf_pending_logic = perf_frame_logic = 0;
     SDL_memset(perf_total, 0, sizeof(perf_total));
     SDL_memset(&perf_stats, 0, sizeof(perf_stats));
     refresh_top_display();
@@ -73,6 +75,11 @@ void DsiMapReady(void)
 
 int DsiPerfEnabled(void) { return perf_enabled; }
 uint64_t DsiPerfClock(void) { return perf_enabled ? tickGetCount() : 0; }
+void DsiPerfRecordLogic(uint64_t start)
+{
+    if (perf_enabled) perf_pending_logic = tickGetCount() - start;
+}
+
 void DsiPerfBeginFrame(void)
 {
     if (!perf_enabled) return;
@@ -84,6 +91,8 @@ void DsiPerfBeginFrame(void)
         SDL_memset(perf_total, 0, sizeof(perf_total));
     }
     SDL_memset(perf_current, 0, sizeof(perf_current));
+    perf_frame_logic = perf_pending_logic;
+    perf_pending_logic = 0;
     perf_active = 1;
 }
 void DsiPerfRecord(enum DsiPerfStage stage, uint64_t start)
@@ -97,7 +106,17 @@ void DsiPerfEndFrame(void)
     perf_active = 0;
     ++perf_frames;
     for (int i = 0; i < DSI_PERF_COUNT; ++i) perf_total[i] += perf_current[i];
-    u64 elapsed = tickGetCount() - perf_window;
+    const u64 now = tickGetCount();
+    if (perf_last_frame) {
+        const unsigned interval = (unsigned)((now - perf_last_frame) * 1000000 / TICK_FREQ);
+        if (interval > perf_stats.peak_us) {
+            perf_stats.peak_us = interval;
+            perf_stats.peak_logic_us = (unsigned)(perf_frame_logic * 1000000 / TICK_FREQ);
+            perf_stats.peak_draw_us = (unsigned)(perf_current[DSI_PERF_RENDER] * 1000000 / TICK_FREQ);
+        }
+    }
+    perf_last_frame = now;
+    const u64 elapsed = now - perf_window;
     if (elapsed < TICK_FREQ / 2) return;
     perf_stats.fps10 = (unsigned)((u64)perf_frames * 10 * TICK_FREQ / elapsed);
     for (int i = 0; i < DSI_PERF_COUNT; ++i)
@@ -133,12 +152,14 @@ void DsiSetTopView(enum DsiTopView view)
 {
     if (loading_depth && view != DSI_TOP_MOVIE) { loading_restore_view = view; return; }
     if (movie_active && view != DSI_TOP_MOVIE) { movie_restore_view = view; return; }
+    if (view == DSI_TOP_MOVIE || view == DSI_TOP_DIAGNOSTICS) DsiDiscardPackedScene();
     if (top_view == view) return;
     top_view = view;
     map_valid = 0;
     map_pending = 1;
     if (view != DSI_TOP_MAP) {
         perf_active = perf_frames = 0;
+        perf_last_frame = perf_pending_logic = 0;
     }
     focus_x = focus_y = -1;
     manual_reading = 0;
@@ -256,6 +277,7 @@ static SDL_Surface *set_mode(SDL_VideoDevice *_this, SDL_Surface *surface, int w
     void *pixels = SDL_calloc((size_t)width, (size_t)height);
     if (!pixels) { SDL_OutOfMemory(); return NULL; }
     if (!SDL_ReallocFormat(surface, 8, 0, 0, 0, 0)) { SDL_free(pixels); return NULL; }
+    DsiDiscardPackedScene();
     SDL_free(_this->hidden->pixels);
     _this->hidden->pixels = pixels;
     surface->pixels = pixels;
@@ -272,8 +294,12 @@ static void update(SDL_VideoDevice *_this, int count, SDL_Rect *rects)
     SDL_Surface *surface = _this->screen;
     if (!surface || !surface->pixels) return;
     u64 started = DsiPerfClock();
-    dsi_present_index8(surface->pixels, surface->w, surface->h, surface->pitch,
-        bgGetGfxPtr(_this->hidden->bg), 128);
+    unsigned scene_rows;
+    const uint8_t *scene = top_view == DSI_TOP_MAP
+        ? DsiPackedScene(surface->pixels, surface->pitch, &scene_rows) : NULL;
+    volatile uint16_t *bottom = bgGetGfxPtr(_this->hidden->bg);
+    if (!scene || !dsi_present_game_index8(surface->pixels, surface->pitch, scene, scene_rows, bottom, 128))
+        dsi_present_index8(surface->pixels, surface->w, surface->h, surface->pitch, bottom, 128);
     DsiPerfRecord(DSI_PERF_BOTTOM, started);
     started = DsiPerfClock();
     if (top_view == DSI_TOP_MENU)
@@ -307,6 +333,7 @@ static void video_quit(SDL_VideoDevice *_this)
     loading_depth = 0;
     movie_active = 0;
     DsiSetTopView(DSI_TOP_DIAGNOSTICS);
+    DsiDiscardPackedScene();
     SDL_free(_this->hidden->pixels); _this->hidden->pixels = NULL;
     if (_this->screen) _this->screen->pixels = NULL;
 }

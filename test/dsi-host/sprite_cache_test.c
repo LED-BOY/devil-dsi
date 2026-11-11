@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "dsi_render.h"
+#include "dsi_video.h"
 #define PITCH 43
 #define W 37
 #define H 29
@@ -71,9 +72,102 @@ static int native_test(void)
  DsiBeginSceneSamples(sampled,672,320,480,352);if(DsiSceneSampling)return 25;
  puts("PASS: native-grid scene samples match full renderer after 20000 layered spans; 256x192 camera coverage, UI and pitch guards preserved");return 0;
 }
+static int packed_scene_test(void)
+{
+ enum { Width = 640, Height = 480, View = 352, Pitch = 644, VramPitch = 130 };
+ static uint8_t logical[Height * Pitch], expected[Height * Pitch];
+ static uint8_t map[256], blend[256][256], source[Width];
+ static uint16_t result[DSI_HEIGHT * VramPitch], full[DSI_HEIGHT * VramPitch];
+ const uint8_t sprite[] = {187,11,187,12,187,13,187,14};
+ unsigned rows = 0;
+
+ memset(logical, 0xa5, sizeof(logical));
+ memset(expected, 0, sizeof(expected));
+ for (unsigned y = View; y < Height; ++y)
+  for (unsigned x = 0; x < Width; ++x)
+   logical[y * Pitch + x] = expected[y * Pitch + x] = rnd() >> 24;
+ for (unsigned i = 0; i < 256; ++i) {
+  map[i] = 255 - i;
+  for (unsigned j = 0; j < 256; ++j)
+   blend[i][j] = (i * 3 + j * 7) & 255;
+ }
+ for (unsigned i = 0; i < Width; ++i) source[i] = (i % 5 == 0) ? 0 : (i * 3) & 255;
+ if (!DsiBeginPackedScene(logical, Pitch, Width, Height, View)) return 30;
+ if (DsiPackedScene(logical, Pitch, &rows)) return 31;
+ for (unsigned step = 0; step < 12000; ++step) {
+  const unsigned x = (rnd() >> 16) % Width, y = (rnd() >> 16) % View;
+  const unsigned n = 1 + (rnd() >> 16) % (Width - x);
+  const unsigned mode = (rnd() >> 16) % 6, color = rnd() >> 24;
+  const uint8_t *data = mode == 0 ? NULL : source;
+  const uint8_t *table = mode == 2 || mode == 4 ? map : NULL;
+  const uint8_t (*mix)[256] = mode == 3 || mode == 4 ? blend : NULL;
+  for (unsigned k = 0; k < n; ++k) {
+   uint8_t *dst = &expected[y * Pitch + x + k];
+   uint8_t value = data ? data[k] : color;
+   if (mode == 5 && value == 0) continue;
+   if (table) value = table[value];
+   *dst = mix ? (mode == 4 ? mix[*dst][value] : mix[value][*dst]) : value;
+  }
+  if (mode == 5) {
+   if (!DsiSampleKeyedSpan(logical + y * Pitch + x, data, n)) return 32;
+  } else if (!DsiSampleSpan(logical + y * Pitch + x, data, n, color, table, mix, mode == 4)) {
+   return 33;
+  }
+ }
+ DsiClearSpriteCache();
+ for (int y = 2; y < 24; ++y) {
+  const int x = y - 12;
+  DsiDrawCachedClx(logical, Pitch, Width, View, x, y, sprite, sizeof(sprite), 4, 4, map);
+  if (!DsiDrawCachedClx(logical, Pitch, Width, View, x, y, sprite, sizeof(sprite), 4, 4, map)) return 34;
+  for (int row = 0; row < 4 && row <= y; ++row)
+   for (int col = 0; col < 4; ++col)
+    if (x + col >= 0) expected[(y - row) * Pitch + x + col] = map[11 + row];
+ }
+ /* The software cursor saves an expanded logical strip, then writes it back
+  * to the packed scene after drawing. Include the unsampled row/columns. */
+ uint8_t cursor_behind[19];
+ for (unsigned y = View - 4; y < View; ++y) {
+  uint8_t *cursor_dst = logical + y * Pitch + 16;
+  if (!DsiReadPackedSpan(cursor_behind, cursor_dst, sizeof(cursor_behind))) return 45;
+  if (!DsiSampleSpan(cursor_dst, NULL, sizeof(cursor_behind), 201, NULL, NULL, 0)) return 46;
+  if (!DsiSampleSpan(cursor_dst, cursor_behind, sizeof(cursor_behind), 0, NULL, NULL, 0)) return 47;
+ }
+ if (DsiSampleSpan(logical + View * Pitch, NULL, 1, 33, NULL, NULL, 0)) return 35;
+ DsiEndSceneSamples(0);
+ const uint8_t *scene = DsiPackedScene(logical, Pitch, &rows);
+ if (!scene || rows != 141 || DsiPackedScene(logical, Pitch + 1, &rows)) return 36;
+ for (unsigned i = 0; i < View * Pitch; ++i)
+  if (logical[i] != 0xa5) return 37;
+
+ memset(result, 0xb3, sizeof(result));
+ memset(full, 0xb3, sizeof(full));
+ if (!dsi_present_game_index8(logical, Pitch, scene, rows, result, VramPitch)
+     || !dsi_present_index8(expected, Width, Height, Pitch, full, VramPitch)
+     || memcmp(result, full, sizeof(result)) != 0) return 38;
+
+ /* A new gameplay frame keeps existing pixels until painted, while leaving
+  * the logical HUD intact. Restoring gives logical-only consumers the view. */
+ if (!DsiBeginPackedScene(logical, Pitch, Width, Height, View)) return 39;
+ DsiEndSceneSamples(0);
+ DsiRestorePackedScene();
+ if (DsiPackedScene(logical, Pitch, &rows)) return 40;
+ if (!dsi_present_index8(logical, Width, Height, Pitch, result, VramPitch)
+     || memcmp(result, full, sizeof(result)) != 0) return 41;
+ for (unsigned y = 0; y < Height; ++y)
+  if (logical[y * Pitch + Width] != 0xa5) return 42;
+
+ if (!DsiBeginPackedScene(logical, Pitch, Width, Height, View)) return 43;
+ DsiEndSceneSamples(0);
+ DsiDiscardPackedScene();
+ if (DsiPackedScene(logical, Pitch, &rows)) return 44;
+ puts("PASS: packed gameplay matches logical rendering and HUD output across 12000 spans and cached sprites");
+ return 0;
+}
 int main(void)
 {
  if(native_test())return 20;
+ const int packed = packed_scene_test();
+ if (packed) { fprintf(stderr, "Packed scene check failed (%d)\n", packed); return packed; }
  uint8_t src[4096], map[256], a[BYTES],b[BYTES]; unsigned trial,hits=0;
  for(trial=0;trial<300;++trial) {
   unsigned w=1+rnd()%64,h=1+rnd()%48,p=0,s=0,total=w*h,i;

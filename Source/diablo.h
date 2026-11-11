@@ -93,6 +93,10 @@ void InitKeymapActions();
 void SetCursorPos(Point position);
 void FreeGameMem();
 bool StartGame(bool bNewGame, bool bSinglePlayer);
+#ifdef __DSI__
+// Reload after returning to the session loop, once the old game's resources are released.
+void RequestDsiSavedGameReload();
+#endif
 [[noreturn]] void diablo_quit(int exitStatus);
 int DiabloMain(int argc, char **argv);
 bool TryIconCurs();

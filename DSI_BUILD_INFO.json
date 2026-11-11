@@ -1,125 +1,68 @@
 {
-  "status": "R7-native2: terrain/outline visibility culling and bounded sprite run/color cache; hardware untested",
-  "source_repository": "https://github.com/LED-BOY/devil-dsi",
-  "source_delivery": "local R7 source archive; based on R6 GitHub commit",
-  "source_branch": "release/r7",
-  "source_base_commit": "8f1621666a5e2ac02f3d9b0f3b3dc666ff2c12d9",
-  "source_modified_for_build": true,
-  "version_suffix": "-DSi-R7-native1",
-  "cross_build": "passed: native Windows CMake/Ninja and devkitARM GCC 16.1.0",
-  "host_test": "passed: R3-R6 regressions and R7 cached sprite differential tests",
-  "hardware_tested": true,
-  "emulator_tested": false,
-  "potion_fix_hardware_confirmed": false,
-  "performance_hardware_measured": false,
-  "test4_user_reported_fps": "approximately 7.4-8 in slow gameplay; stage breakdown unavailable",
+  "version_suffix": "-DSi-R8-arm3",
+  "hardware_tested": false,
+  "native_scene_samples_default": true,
+  "physical_resolution": [
+    256,
+    192
+  ],
+  "logical_ui_resolution": [
+    640,
+    480
+  ],
+  "native_scene_buffer_bytes": 49152,
+  "nds_banner": {
+    "width": 32,
+    "height": 32,
+    "palette_entries": 16,
+    "includes_user_icon": true
+  },
+  "rom_bytes": 2188288,
+  "rom_sha256": "bd57a712d05d0986990cfd8f4f459a319fd2dec5ff2264fac6e6267f9c6dc30d",
+  "rom_unit_code": 2,
+  "cross_build": "passed",
+  "host_tests": "passed",
   "itcm": {
-    "itcm_bytes": 3640,
+    "itcm_bytes": 5384,
     "itcm_available_bytes": 32736,
     "load_address": "0x2008d78",
     "kernels": {
       "DsiBlitMapped": {
-        "address": "0x1ff8454",
+        "address": "0x1ff8794",
         "bytes": 156
       },
       "DsiBlitBlended": {
-        "address": "0x1ff84f0",
+        "address": "0x1ff8830",
         "bytes": 196
       },
       "DsiBlitBlendedMapped": {
-        "address": "0x1ff85b4",
+        "address": "0x1ff88f4",
         "bytes": 224
       },
       "DsiFillBlended": {
-        "address": "0x1ff8694",
+        "address": "0x1ff89d4",
         "bytes": 144
+      },
+      "DsiSampleSpan": {
+        "address": "0x1ff8a64",
+        "bytes": 912
       },
       "dsi_present_index8": {
         "address": "0x1ff8020",
-        "bytes": 488
+        "bytes": 532
+      },
+      "dsi_present_game_index8": {
+        "address": "0x1ff8234",
+        "bytes": 788
       },
       "dsi_present_reading_index8": {
-        "address": "0x1ff8208",
+        "address": "0x1ff8548",
         "bytes": 588
       }
     }
   },
-  "optimized_renderer_files": [
-    "scrollrt.cpp",
-    "clx_render.cpp",
-    "dun_render.cpp"
-  ],
-  "renderer_optimization": "-O2; ARM/ITCM only for small C pixel/presentation kernels",
-  "top_map_refresh_hz_default": 15,
-  "top_map_refresh_hz_choices": [
-    10,
-    15,
-    0
-  ],
-  "performance_stats_default": false,
-  "internal_resolution": [
-    640,
-    480
-  ],
-  "ui_canvas_resolution": [
-    640,
-    480
-  ],
-  "top_map_default": true,
-  "top_map_off_stats_refresh_hz": 2,
-  "latest_hardware_baseline": {
-    "fps": 7.3,
-    "draw_ms": 98.3,
-    "map_ms": 18.3,
-    "copy_bottom_ms": 6.4,
-    "copy_top_ms": 5.3
-  },
-  "rom_bytes": 2304000,
-  "rom_sha256": "eb71519f0d9f59cae22d6f8bd2b5d0678410a3576ad54b059a58216aa3da9903",
-  "rom_unit_code": 2,
-  "header_crc16": "verified",
-  "rom_segments": {
-    "arm9": {
-      "offset": 16384,
-      "entry": "0x2004800",
-      "ram": "0x2004000",
-      "bytes": 2207544
-    },
-    "arm7": {
-      "offset": 2224128,
-      "entry": "0x2380000",
-      "ram": "0x2380000",
-      "bytes": 45940
-    },
-    "arm9i": {
-      "offset": 2273280,
-      "entry": "0x0",
-      "ram": "0x2400000",
-      "bytes": 12
-    },
-    "arm7i": {
-      "offset": 2273792,
-      "entry": "0x3807558",
-      "ram": "0x2e80000",
-      "bytes": 30004
-    }
-  },
-  "arm9_elf": {
-    "text": 2189960,
-    "data": 17596,
-    "bss": 922940
-  },
-  "sound": true,
-  "music": false,
-  "movie_audio": false,
-  "sfx_pcm_cache_limit_bytes": 1048576,
-  "sfx_input_limit_bytes": 131072,
-  "sfx_decoded_sample_limit_bytes": 262144,
-  "networking": false,
-  "sprite_cache_slots": 16,
-  "sprite_cache_budget_approx_bytes": 201216,
-  "dstwo_support": false,
-  "implementation_notes": "Earlier terrain and outline rejection. Two-way repeated-use CLX run cache with translated colors, exact source/map validation and original-renderer fallback. R6 options retained. Hardware FPS needs measurement. Native-grid world span sampling at unchanged camera coordinates, with expansion only for the top-screen reader; special effects/per-pixel paths may retain full work.",
-  "native_scene_samples_default": true,
-  "native_scene_sample_buffer_bytes": 0
+  "source_repository": "https://github.com/LED-BOY/devil-dsi",
+  "source_branch": "release/r8",
+  "source_base_commit": "a055b528bfc961f4c6d3ee0b122d987cf3ffd9dd",
+  "hardware_status": "Earlier R8 builds reported faster by user; final ARM3 reload change awaits hardware verification"
 }

@@ -423,10 +423,12 @@ include(Mods)
 
 if(NINTENDO_DSI)
   target_link_options(${BIN_TARGET} PRIVATE "-Wl,-Map,${CMAKE_BINARY_DIR}/devilutionx.map")
+  set(_dsi_icon "${PROJECT_SOURCE_DIR}/Packaging/dsi/diablo-icon.bmp")
+  set_property(TARGET ${BIN_TARGET} APPEND PROPERTY LINK_DEPENDS "${_dsi_icon}")
   add_custom_command(TARGET ${BIN_TARGET} POST_BUILD
     COMMAND "${DEVKITPRO}/tools/bin/ndstool.exe" -c "${CMAKE_BINARY_DIR}/devilutionx-dsi.nds"
       -9 $<TARGET_FILE:${BIN_TARGET}> -7 "${DEVKITPRO}/calico/bin/ds7_maine.elf"
-      -b "${DEVKITPRO}/calico/share/nds-icon.bmp" "DevilutionX DSi;Experimental engine;Sound effects"
+      -b "${_dsi_icon}" "DevilutionX DSi;R8;Sound effects"
     VERBATIM)
 endif()
 

@@ -1,5 +1,6 @@
 #include "dsi_render.h"
 #include "dsi_hot.h"
+#include "dsi_video.h"
 
 DSI_HOT void DsiBlitMapped(uint8_t *restrict dst, const uint8_t *restrict src,
     unsigned length, const uint8_t *restrict map)
@@ -49,11 +50,80 @@ DSI_HOT void DsiFillBlended(uint8_t *dst, unsigned length, const uint8_t *row)
 #include <stddef.h>
 
 #define SPRITE_CACHE_SLOTS 16
+enum { SceneWidth = 640, SceneHeight = 480 };
 int DsiSceneSampling;
 static uint8_t *scene_base;
-static unsigned scene_pitch, scene_height;
-static uint16_t scene_next_x[641], scene_x[257], scene_y[193];
-static uint8_t scene_row[480];
+static unsigned scene_pitch, scene_height, scene_rows;
+static uintptr_t scene_bytes;
+static int scene_packed, scene_ready;
+static uint16_t scene_next_x[SceneWidth + 1], scene_x[DSI_WIDTH + 1], scene_y[DSI_HEIGHT + 1];
+/* Zero means the logical row is skipped. Other entries are native row + 1. */
+static uint8_t scene_row[SceneHeight], scene_previous_y[SceneHeight];
+static uint8_t scene_pixels[DSI_WIDTH * DSI_HEIGHT] __attribute__((aligned(4)));
+
+static inline uint8_t *PackedRow(unsigned y)
+{
+    return scene_pixels + (scene_row[y] - 1) * DSI_WIDTH;
+}
+
+/* The 640-to-256 grid advances by two and three source pixels
+ * alternately. After the first lookup, every pair advances by five. */
+static DSI_INLINE void CopyPackedPixels(uint8_t *dst, const uint8_t *src,
+    unsigned count, unsigned first, const uint8_t *map)
+{
+    const unsigned step = 2 + (first & 1);
+    unsigned i = 0, k = 0;
+    if (map) {
+        for (; i + 1 < count; i += 2, k += 5) {
+            dst[i] = map[src[k]];
+            dst[i + 1] = map[src[k + step]];
+        }
+        if (i < count) dst[i] = map[src[k]];
+    } else {
+        for (; i + 1 < count; i += 2, k += 5) {
+            dst[i] = src[k];
+            dst[i + 1] = src[k + step];
+        }
+        if (i < count) dst[i] = src[k];
+    }
+}
+
+static DSI_INLINE void WritePackedSpan(unsigned x, unsigned y, unsigned length, const uint8_t *src,
+    unsigned color, const uint8_t *map, const uint8_t blend[256][256], int destinationFirst, int keyed)
+{
+    const unsigned first = scene_next_x[x], end = scene_next_x[x + length];
+    const unsigned count = end - first;
+    if (!count) return;
+    uint8_t *dst = PackedRow(y) + first;
+
+    if (!blend) {
+        if (!src) {
+            const uint8_t value = map ? map[color] : color;
+            if (count == 1)
+                *dst = value;
+            else
+                memset(dst, value, count);
+        } else if (!keyed) {
+            CopyPackedPixels(dst, src + (scene_x[first] - x), count, first, map);
+        } else {
+            for (unsigned i = 0; i < count; ++i) {
+                const uint8_t value = src[scene_x[first + i] - x];
+                if (value != 0) dst[i] = value;
+            }
+        }
+        return;
+    }
+
+    if (!src && !destinationFirst) {
+        DsiFillBlended(dst, count, blend[map ? map[color] : color]);
+        return;
+    }
+    for (unsigned i = 0; i < count; ++i) {
+        uint8_t value = src ? src[scene_x[first + i] - x] : color;
+        if (map) value = map[value];
+        dst[i] = destinationFirst ? blend[dst[i]][value] : blend[value][dst[i]];
+    }
+}
 
 #define SPRITE_CACHE_BYTES 4096
 #define SPRITE_CACHE_RUNS 512
@@ -162,7 +232,7 @@ int DsiDrawCachedClx(uint8_t *dst, unsigned pitch, int outWidth, int outHeight,
         colors = entry->colors;
     }
     const int sampleScene = DsiSceneSampling && dst == scene_base
-        && pitch == scene_pitch && outWidth == 640 && outHeight <= (int)scene_height;
+        && pitch == scene_pitch && outWidth == SceneWidth && outHeight <= (int)scene_height;
     for (i = 0; i < entry->count; ++i) {
         const SpriteRun *run = &entry->runs[i];
         int yy = y - run->y, left, right;
@@ -181,9 +251,14 @@ int DsiDrawCachedClx(uint8_t *dst, unsigned pitch, int outWidth, int outHeight,
         out = dst + (size_t)yy * pitch + left;
         if (sampleScene) {
             /* The sprite cache already knows the row and column. */
-            for (unsigned at = scene_next_x[left]; at < (unsigned)right; at = scene_next_x[at + 1]) {
-                const unsigned sourceOffset = run->offset + (run->fill ? 0 : skip + at - left);
-                out[at - left] = colors[sourceOffset];
+            const uint8_t *data = run->fill ? NULL : colors + run->offset + skip;
+            if (scene_packed) {
+                WritePackedSpan(left, yy, right - left, data, colors[run->offset], NULL, NULL, 0, 0);
+            } else {
+                for (unsigned i = scene_next_x[left]; i < scene_next_x[right]; ++i) {
+                    const unsigned k = scene_x[i] - left;
+                    out[k] = data ? data[k] : colors[run->offset];
+                }
             }
             continue;
         }
@@ -195,63 +270,149 @@ int DsiDrawCachedClx(uint8_t *dst, unsigned pitch, int outWidth, int outHeight,
     return 1;
 }
 
-/* Keep camera coordinates intact: select exactly the source coordinates used
- * by the 256x192 presenter instead of changing tile geometry or viewport FOV. */
+/* Keep the camera and all sprite positions in logical coordinates. */
+static int BeginSceneSamples(uint8_t *base, unsigned pitch, unsigned width,
+    unsigned height, unsigned viewHeight, int packed)
+{
+    static int tables_ready;
+    DsiSceneSampling = 0;
+    if (!base || width != SceneWidth || height != SceneHeight || viewHeight == 0
+        || viewHeight > SceneHeight || pitch < SceneWidth)
+        return 0;
+
+    if (!tables_ready) {
+        unsigned j = 0;
+        for (unsigned i = 0; i <= DSI_WIDTH; ++i) scene_x[i] = i * SceneWidth / DSI_WIDTH;
+        for (unsigned i = 0; i <= DSI_HEIGHT; ++i) scene_y[i] = i * SceneHeight / DSI_HEIGHT;
+        for (unsigned i = 0; i < DSI_HEIGHT; ++i) {
+            scene_row[scene_y[i]] = i + 1;
+            for (unsigned y = scene_y[i]; y < scene_y[i + 1]; ++y)
+                scene_previous_y[y] = i;
+        }
+        for (unsigned i = 0; i <= SceneWidth; ++i) {
+            while (scene_x[j] < i) ++j;
+            scene_next_x[i] = j;
+        }
+        tables_ready = 1;
+    }
+    const unsigned rows = (viewHeight * DSI_HEIGHT + SceneHeight - 1) / SceneHeight;
+    if (packed && (!scene_ready || base != scene_base || pitch != scene_pitch || rows != scene_rows))
+        memset(scene_pixels, 0, rows * DSI_WIDTH);
+    scene_ready = 0;
+    scene_base = base;
+    scene_pitch = pitch;
+    scene_height = viewHeight;
+    scene_bytes = (uintptr_t)viewHeight * pitch;
+    scene_rows = rows;
+    scene_packed = packed;
+    DsiSceneSampling = 1;
+    return 1;
+}
+
 void DsiBeginSceneSamples(uint8_t *base, unsigned pitch, unsigned width, unsigned canvasHeight, unsigned viewHeight)
 {
-    unsigned i, j;
-    DsiSceneSampling = 0;
-    if (width != 640 || canvasHeight != 480 || viewHeight > 480 || pitch < 640) return;
-    scene_base = base; scene_pitch = pitch; scene_height = viewHeight;
-    memset(scene_row, 0, sizeof(scene_row));
-    for (i = 0; i <= 256; ++i) scene_x[i] = i * 640 / 256;
-    for (i = 0; i <= 192; ++i) scene_y[i] = i * 480 / 192;
-    for (i = 0; i < 192; ++i) scene_row[scene_y[i]] = 1;
-    j = 0;
-    for (i = 0; i <= 640; ++i) {
-        while (scene_x[j] < i) ++j;
-        scene_next_x[i] = scene_x[j];
-    }
-    DsiSceneSampling = 1;
+    BeginSceneSamples(base, pitch, width, canvasHeight, viewHeight, 0);
 }
-int DsiSampleSpan(uint8_t *dst, const uint8_t *src, unsigned length, unsigned color,
-    const uint8_t *map, const uint8_t blend[256][256], int destinationFirst)
+
+int DsiBeginPackedScene(uint8_t *base, unsigned pitch, unsigned width, unsigned height, unsigned viewHeight)
 {
-    uintptr_t offset;
-    unsigned x, y, end, at;
-    if (!DsiSceneSampling) return 0;
-    if ((uintptr_t)dst < (uintptr_t)scene_base) return 0;
-    offset = (uintptr_t)dst - (uintptr_t)scene_base;
-    /* The standard canvas can use constant division on ARM9. */
-    y = scene_pitch == 640 ? offset / 640 : offset / scene_pitch;
-    x = offset - y * scene_pitch;
-    if (y >= scene_height || x >= 640 || length > 640 - x) return 0;
+    return BeginSceneSamples(base, pitch, width, height, viewHeight, 1);
+}
+
+static inline int LogicalSpan(const uint8_t *pixel, unsigned length, unsigned *x, unsigned *y)
+{
+    if (!DsiSceneSampling || (uintptr_t)pixel < (uintptr_t)scene_base) return 0;
+    const uintptr_t offset = (uintptr_t)pixel - (uintptr_t)scene_base;
+    if (offset >= scene_bytes) return 0;
+    /* The standard canvas uses constant division on ARM9. */
+    *y = scene_pitch == SceneWidth ? offset / SceneWidth : offset / scene_pitch;
+    *x = offset - (uintptr_t)*y * scene_pitch;
+    return *x < SceneWidth && length <= SceneWidth - *x;
+}
+
+static DSI_INLINE int SampleSpan(uint8_t *dst, const uint8_t *src, unsigned length, unsigned color,
+    const uint8_t *map, const uint8_t blend[256][256], int destinationFirst, int keyed)
+{
+    unsigned x, y;
+    if (!LogicalSpan(dst, length, &x, &y)) return 0;
     if (!scene_row[y]) return 1;
-    end = x + length;
-    for (at = scene_next_x[x]; at < end; at = scene_next_x[at + 1]) {
-        unsigned k = at - x;
-        uint8_t v = src ? src[k] : color;
-        if (map) v = map[v];
-        if (blend) v = destinationFirst ? blend[dst[k]][v] : blend[v][dst[k]];
-        dst[k] = v;
+    if (scene_packed) {
+        WritePackedSpan(x, y, length, src, color, map, blend, destinationFirst, keyed);
+    } else {
+        for (unsigned i = scene_next_x[x]; i < scene_next_x[x + length]; ++i) {
+            const unsigned k = scene_x[i] - x;
+            uint8_t v = src ? src[k] : color;
+            if (keyed && v == 0) continue;
+            if (map) v = map[v];
+            if (blend) v = destinationFirst ? blend[dst[k]][v] : blend[v][dst[k]];
+            dst[k] = v;
+        }
     }
     return 1;
 }
+
+DSI_HOT int DsiSampleSpan(uint8_t *dst, const uint8_t *src, unsigned length, unsigned color,
+    const uint8_t *map, const uint8_t blend[256][256], int destinationFirst)
+{
+    return SampleSpan(dst, src, length, color, map, blend, destinationFirst, 0);
+}
+
+int DsiReadPackedSpan(uint8_t *dst, const uint8_t *logical, unsigned length)
+{
+    unsigned x, y;
+    if (!scene_packed || !LogicalSpan(logical, length, &x, &y)) return 0;
+    const uint8_t *row = scene_pixels + scene_previous_y[y] * DSI_WIDTH;
+    for (unsigned i = 0; i < length; ++i) {
+        const unsigned next = scene_next_x[x + i];
+        dst[i] = row[next - (scene_x[next] > x + i)];
+    }
+    return 1;
+}
+
+int DsiSampleKeyedSpan(uint8_t *dst, const uint8_t *src, unsigned length)
+{
+    return SampleSpan(dst, src, length, 0, NULL, NULL, 0, 1);
+}
+
+static void ExpandScene(int packed)
+{
+    for (unsigned y = 0; y < scene_rows; ++y) {
+        uint8_t *row = scene_base + scene_y[y] * scene_pitch;
+        const uint8_t *native = scene_pixels + y * DSI_WIDTH;
+        for (unsigned x = 0; x < DSI_WIDTH; ++x) {
+            const uint8_t sample = packed ? native[x] : row[scene_x[x]];
+            for (unsigned xx = scene_x[x] + !packed; xx < scene_x[x + 1]; ++xx) row[xx] = sample;
+        }
+        for (unsigned yy = scene_y[y] + 1; yy < scene_y[y + 1] && yy < scene_height; ++yy)
+            memcpy(scene_base + yy * scene_pitch, row, SceneWidth);
+    }
+}
+
 void DsiEndSceneSamples(int expandForReader)
 {
-    unsigned x, y, yy, xx;
     if (!DsiSceneSampling) return;
     DsiSceneSampling = 0;
-    if (!expandForReader) return;
-    /* Each interval starts at its own sample. Expanding in place leaves the
-     * next interval's source untouched. */
-    for (y = 0; y < 192 && scene_y[y] < scene_height; ++y) {
-        uint8_t *row = scene_base + scene_y[y] * scene_pitch;
-        for (x = 0; x < 256; ++x) {
-            const uint8_t sample = row[scene_x[x]];
-            for (xx = scene_x[x] + 1; xx < scene_x[x + 1]; ++xx) row[xx] = sample;
-        }
-        for (yy = scene_y[y] + 1; yy < scene_y[y + 1] && yy < scene_height; ++yy)
-            memcpy(scene_base + yy * scene_pitch, row, 640);
-    }
+    if (scene_packed)
+        scene_ready = 1;
+    else if (expandForReader)
+        ExpandScene(0);
+}
+
+const uint8_t *DsiPackedScene(const void *base, unsigned pitch, unsigned *rows)
+{
+    if (!scene_ready || base != scene_base || pitch != scene_pitch) return NULL;
+    *rows = scene_rows;
+    return scene_pixels;
+}
+
+void DsiRestorePackedScene(void)
+{
+    if (!scene_ready) return;
+    ExpandScene(1);
+    scene_ready = 0;
+}
+
+void DsiDiscardPackedScene(void)
+{
+    scene_ready = 0;
 }

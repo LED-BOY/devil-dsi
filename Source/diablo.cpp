@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <string_view>
 #ifdef __DSI__
+#include "platform/dsi/dsi_audio.h"
 #include "platform/dsi/dsi_trace.h"
 #include "platform/dsi/dsi_video.h"
 #endif
@@ -174,6 +175,9 @@ bool forceSpawn;
 bool forceDiablo;
 int sgnTimeoutCurs;
 bool gbShowIntro = true;
+#ifdef __DSI__
+bool DsiSavedGameReloadRequested = false;
+#endif
 /** To know if these things have been done when we get to the diablo_deinit() function */
 bool was_archives_init = false;
 /** To know if surfaces have been initialized or not */
@@ -930,7 +934,7 @@ void RunGameLoop(interface_mode uMsg)
 
 		SDL_Event event;
 		uint16_t modState;
-		while (FetchMessage(&event, &modState)) {
+		while (gbRunGame && FetchMessage(&event, &modState)) {
 			if (event.type == SDL_EVENT_QUIT) {
 				gbRunGameResult = false;
 				gbRunGame = false;
@@ -949,6 +953,9 @@ void RunGameLoop(interface_mode uMsg)
 
 		discord_manager::UpdateGame();
 
+#ifdef __DSI__
+		const uint64_t logicStarted = DsiPerfClock();
+#endif
 		if (!runGameLoop) {
 			if (processInput)
 				ProcessInput();
@@ -956,6 +963,9 @@ void RunGameLoop(interface_mode uMsg)
 			if (!drawGame)
 				continue;
 			RedrawViewport();
+#ifdef __DSI__
+			DsiPerfRecordLogic(logicStarted);
+#endif
 			DrawAndBlit();
 			continue;
 		}
@@ -965,8 +975,12 @@ void RunGameLoop(interface_mode uMsg)
 		if (game_loop(gbGameLoopStartup))
 			diablo_color_cyc_logic();
 		gbGameLoopStartup = false;
-		if (drawGame)
+		if (drawGame) {
+#ifdef __DSI__
+			DsiPerfRecordLogic(logicStarted);
+#endif
 			DrawAndBlit();
+		}
 #ifdef GPERF_HEAP_FIRST_GAME_ITERATION
 		if (run_game_iteration++ == 0)
 			HeapProfilerDump("first_game_iteration");
@@ -980,14 +994,34 @@ void RunGameLoop(interface_mode uMsg)
 		sfile_write_stash();
 	}
 
+#ifdef __DSI__
+	if (DsiSavedGameReloadRequested)
+		DsiTrace("in-game reload: leaving current session");
+#endif
 	PaletteFadeOut(8);
 	NewCursor(CURSOR_NONE);
+#ifdef __DSI__
+	if (DsiSavedGameReloadRequested)
+		InitBackbufferState();
+#endif
 	ClearScreenBuffer();
 	RedrawEverything();
 	scrollrt_draw_game_screen();
 	previousHandler = SetEventHandler(previousHandler);
 	assert(HeadlessMode || previousHandler == GameEventHandler);
 	FreeGame();
+
+#ifdef __DSI__
+	if (DsiSavedGameReloadRequested) {
+		DsiAudioClearCache();
+		ClrDiabloMsg();
+		PauseMode = 0;
+		MyPlayerIsDead = false;
+		CornerStone.activated = false;
+		DsiTrace("in-game reload: old session released");
+		return;
+	}
+#endif
 
 	if (cineflag) {
 		cineflag = false;
@@ -2704,6 +2738,16 @@ void FreeGameMem()
 #endif
 }
 
+#ifdef __DSI__
+void RequestDsiSavedGameReload()
+{
+	if (!gbRunGame || gbIsMultiplayer || !gbValidSaveFile)
+		return;
+	DsiSavedGameReloadRequested = true;
+	gbRunGame = false;
+}
+#endif
+
 bool StartGame(bool bNewGame, bool bSinglePlayer)
 {
 #ifdef __DSI__
@@ -2744,7 +2788,18 @@ bool StartGame(bool bNewGame, bool bSinglePlayer)
 		if (gbValidSaveFile && gbLoadGame) {
 			uMsg = WM_DIABLOADGAME;
 		}
+#ifdef __DSI__
+		for (;;) {
+			RunGameLoop(uMsg);
+			if (!DsiSavedGameReloadRequested)
+				break;
+			DsiSavedGameReloadRequested = false;
+			uMsg = WM_DIABLOADGAME;
+			DsiTrace("in-game reload: opening saved session");
+		}
+#else
 		RunGameLoop(uMsg);
+#endif
 		NetClose();
 		UnloadFonts();
 

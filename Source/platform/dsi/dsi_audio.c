@@ -3,10 +3,9 @@
 #include <math.h>
 #include <string.h>
 #include "dsi_audio.h"
-#include "dsi_trace.h"
 
 enum { CLIPS = 32, VOICES = 16, CACHE_LIMIT = 1024 * 1024,
-    FILE_LIMIT = 128 * 1024, SAMPLE_LIMIT = 256 * 1024 };
+    FILE_LIMIT = 128 * 1024, SAMPLE_LIMIT = 256 * 1024, MONSTER_LOAD_GAP_MS = 150 };
 typedef struct {
     char path[256];
     Uint8 *pcm;
@@ -17,7 +16,8 @@ static Clip clips[CLIPS];
 static Voice voices[VOICES];
 static unsigned cache_bytes, age;
 static int ready;
-static unsigned logged_plays, logged_skips;
+static Uint32 monster_load_finished;
+static int monster_load_recent;
 
 static void collect_finished(void)
 {
@@ -48,12 +48,19 @@ static Clip *oldest_unused(void)
     return oldest;
 }
 
-static Clip *load_clip(const char *path)
+static Clip *find_clip(const char *path)
 {
-    if (!ready || !path || SDL_strlen(path) >= sizeof(clips[0].path)) return NULL;
-    collect_finished();
     for (int i = 0; i < CLIPS; ++i)
-        if (clips[i].pcm && SDL_strcmp(clips[i].path, path) == 0) { clips[i].age = ++age; return &clips[i]; }
+        if (clips[i].pcm && SDL_strcmp(clips[i].path, path) == 0) {
+            clips[i].age = ++age;
+            return &clips[i];
+        }
+    return NULL;
+}
+
+static Clip *decode_clip(const char *path)
+{
+    if (SDL_strlen(path) >= sizeof(clips[0].path)) return NULL;
     SDL_RWops *file = DsiOpenAudioAsset(path);
     if (!file) return NULL;
     int size = SDL_RWseek(file, 0, RW_SEEK_END);
@@ -124,17 +131,26 @@ void DsiAudioStop(const void *owner)
     for (int i = 0; i < VOICES; ++i) if (mask & (1u << i)) { voices[i].owner = NULL; voices[i].clip = NULL; }
 }
 
-int DsiAudioPlay(const void *owner, const char *path, int attenuation, int pan, int user_volume)
+static int play(const void *owner, const char *path, int attenuation, int pan, int user_volume, int monster)
 {
-    if (!ready || !owner || user_volume <= -1600) return 0;
-    Clip *clip = load_clip(path);
-    if (!clip) {
-        if (logged_skips++ < 4) DsiTrace("SFX unavailable/too large/cache busy: %s", path);
-        return 0;
-    }
+    if (!ready || !owner || !path || user_volume <= -1600) return 0;
+    collect_finished();
     int channel;
     for (channel = 0; channel < VOICES; ++channel) if (!voices[channel].owner) break;
-    if (channel == VOICES) return 0; /* Drop excess effects; never steal a live buffer. */
+    if (channel == VOICES) return 0;
+
+    Clip *clip = find_clip(path);
+    if (!clip) {
+        if (monster && monster_load_recent
+            && (Uint32)(SDL_GetTicks() - monster_load_finished) < MONSTER_LOAD_GAP_MS)
+            return 0;
+        clip = decode_clip(path);
+        if (monster) {
+            monster_load_finished = SDL_GetTicks();
+            monster_load_recent = 1;
+        }
+        if (!clip) return 0;
+    }
     int gain = attenuation + user_volume * 4;
     if (gain < -6400) gain = -6400;
     if (gain > 0) gain = 0;
@@ -147,9 +163,29 @@ int DsiAudioPlay(const void *owner, const char *path, int attenuation, int pan, 
     soundPreparePcm(channel | SOUND_START, volume, position, soundTimerFromHz(clip->rate),
         SoundMode_OneShot, SoundFmt_Pcm16, clip->pcm, 0, clip->bytes / 4);
     soundSynchronize(); /* ARM7 must see the buffer before it can be retired. */
-    if (logged_plays++ < 4) DsiTrace("SFX %s ch=%d rate=%u bytes=%u cache=%u", path, channel, clip->rate, clip->bytes, cache_bytes);
     return 1;
 }
+
+int DsiAudioPlay(const void *owner, const char *path, int attenuation, int pan, int user_volume)
+{
+    return play(owner, path, attenuation, pan, user_volume, 0);
+}
+
+int DsiAudioPlayMonster(const void *owner, const char *path, int attenuation, int pan, int user_volume)
+{
+    return play(owner, path, attenuation, pan, user_volume, 1);
+}
+
+static Clip *load_clip(const char *path)
+{
+    if (!ready || !path) return NULL;
+    Clip *clip = find_clip(path);
+    if (clip) return clip;
+    collect_finished();
+    return decode_clip(path);
+}
+
+int DsiAudioWarm(const char *path) { return load_clip(path) != NULL; }
 
 int DsiAudioIsPlaying(const void *owner)
 {
@@ -160,12 +196,18 @@ int DsiAudioIsPlaying(const void *owner)
 }
 int DsiAudioLength(const char *path) { Clip *clip = load_clip(path); return clip ? (int)clip->duration : 0; }
 unsigned DsiAudioCacheBytes(void) { return cache_bytes; }
-void DsiAudioQuit(void)
+void DsiAudioClearCache(void)
 {
     if (!ready) return;
     soundStop(0xffff); soundSynchronize();
     SDL_memset(voices, 0, sizeof(voices));
     for (int i = 0; i < CLIPS; ++i) if (clips[i].pcm) evict(&clips[i]);
+    monster_load_recent = 0;
+}
+void DsiAudioQuit(void)
+{
+    if (!ready) return;
+    DsiAudioClearCache();
     soundSetAutoUpdate(0); ready = 0;
 }
 void DsiAudioSetEnabled(int enabled) { if (enabled) DsiAudioInit(); else DsiAudioQuit(); }

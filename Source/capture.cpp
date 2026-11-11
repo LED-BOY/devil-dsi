@@ -34,6 +34,9 @@
 #include "engine/dx.h"
 #include "engine/palette.h"
 #include "engine/render/scrollrt.h"
+#ifdef __DSI__
+#include "platform/dsi/dsi_render.h"
+#endif
 #include "utils/file_util.h"
 #include "utils/log.hpp"
 #include "utils/paths.h"
@@ -101,6 +104,9 @@ void CaptureScreen()
 	system_palette = origSystemPalette;
 	SystemPaletteUpdated();
 
+#ifdef __DSI__
+	DsiRestorePackedScene();
+#endif
 	const std::expected<void, std::string> result =
 #if DEVILUTIONX_SCREENSHOT_FORMAT == DEVILUTIONX_SCREENSHOT_FORMAT_PCX
 	    WriteSurfaceToFilePcx(GlobalBackBuffer(), outStream);

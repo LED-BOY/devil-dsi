@@ -18,6 +18,12 @@ void DrawHalfTransparentUnalignedBlendedRectTo(const Surface &out, unsigned sx, 
 	const uint8_t *const lookupTable = paletteTransparencyLookup[color];
 	const unsigned skipX = out.pitch() - width;
 	for (unsigned y = 0; y < height; ++y) {
+#ifdef __DSI__
+		if (DsiSceneSampling && DsiSampleSpan(pix, nullptr, width, color, nullptr, paletteTransparencyLookup, 0)) {
+			pix += out.pitch();
+			continue;
+		}
+#endif
 		for (unsigned x = 0; x < width; ++x, ++pix) {
 			*pix = lookupTable[*pix];
 		}
@@ -104,7 +110,12 @@ void DrawHorizontalLine(const Surface &out, Point from, int width, std::uint8_t 
 
 void UnsafeDrawHorizontalLine(const Surface &out, Point from, int width, std::uint8_t colorIndex)
 {
-	std::memset(&out[from], colorIndex, width);
+	uint8_t *dst = &out[from];
+#ifdef __DSI__
+	if (DsiSceneSampling && DsiSampleSpan(dst, nullptr, width, colorIndex, nullptr, nullptr, 0))
+		return;
+#endif
+	std::memset(dst, colorIndex, width);
 }
 
 void DrawVerticalLine(const Surface &out, Point from, int height, std::uint8_t colorIndex)
@@ -125,7 +136,10 @@ void UnsafeDrawVerticalLine(const Surface &out, Point from, int height, std::uin
 	auto *dst = &out[from];
 	const auto pitch = out.pitch();
 	while (height-- > 0) {
-		*dst = colorIndex;
+#ifdef __DSI__
+		if (!DsiSceneSampling || !DsiSampleSpan(dst, nullptr, 1, colorIndex, nullptr, nullptr, 0))
+#endif
+			*dst = colorIndex;
 		dst += pitch;
 	}
 }
@@ -219,6 +233,10 @@ void SetHalfTransparentPixel(const Surface &out, Point position, uint8_t color)
 {
 	if (out.InBounds(position)) {
 		uint8_t *pix = out.at(position.x, position.y);
+#ifdef __DSI__
+		if (DsiSceneSampling && DsiSampleSpan(pix, nullptr, 1, color, nullptr, paletteTransparencyLookup, 0))
+			return;
+#endif
 		const auto &lookupTable = paletteTransparencyLookup[color];
 		*pix = lookupTable[*pix];
 	}
@@ -226,21 +244,17 @@ void SetHalfTransparentPixel(const Surface &out, Point position, uint8_t color)
 
 void UnsafeDrawBorder2px(const Surface &out, Rectangle rect, uint8_t color)
 {
-	const size_t width = rect.size.width;
-	const size_t height = rect.size.height;
-	uint8_t *buf = &out[rect.position];
-	std::memset(buf, color, width);
-	buf += out.pitch();
-	std::memset(buf, color, width);
-	buf += out.pitch();
-	for (size_t i = 4; i < height; ++i) {
-		buf[0] = buf[1] = color;
-		buf[width - 2] = buf[width - 1] = color;
-		buf += out.pitch();
+	const int width = rect.size.width;
+	const int height = rect.size.height;
+	const Point top = rect.position;
+	for (int y = 0; y < height; ++y) {
+		if (y < 2 || y >= height - 2) {
+			UnsafeDrawHorizontalLine(out, top + Displacement { 0, y }, width, color);
+		} else {
+			UnsafeDrawHorizontalLine(out, top + Displacement { 0, y }, 2, color);
+			UnsafeDrawHorizontalLine(out, top + Displacement { width - 2, y }, 2, color);
+		}
 	}
-	std::memset(buf, color, width);
-	buf += out.pitch();
-	std::memset(buf, color, width);
 }
 
 } // namespace devilution

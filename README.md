@@ -1,28 +1,14 @@
-# R7 native-sampling test
+# DevilutionX for Nintendo DSi — R8
 
-See [R7_NOTES.md](R7_NOTES.md) for the Native Scene Samples option, camera behavior, limits and hardware comparison instructions.
+R8 renders ordinary gameplay into a packed native display buffer and uses ARM9 drawing and screen-copy optimizations. It includes a Diablo launcher icon, enemy sound preloading, peak frame timing and a revised in-game save reload path.
 
-# R7 — visibility culling and sprite cache
+Download the runtime ZIP from the [R8 release](https://github.com/LED-BOY/devil-dsi/releases/tag/r8), extract it to the SD root, and launch `devilutionx-dsi.nds` from TWiLight Menu++ in DSi mode. Supply your own `sd:/devilutionx/DIABDAT.MPQ`. Keep your settings and saves.
 
-R7 keeps the 640x480 layout and all R6 controls, sound-effects and top-map options. No DSTWO support or 320x240 scene mode is included.
+Native Scene Samples defaults to On under Settings → Nintendo DSi. Use the standard layout with Graphics Zoom and Per-Pixel Lighting off for the packed renderer. Menu reading zoom and the gameplay top map remain configurable.
 
-## Rendering changes
+This prerelease packages build **R8-arm3**. Earlier R8 builds improved FPS in the user's DSi tests. The final reload change passed host tests and still needs hardware confirmation. Enemy sound preloading can extend level loads, and busy fights may skip some uncached enemy sounds.
 
-- Reject off-screen terrain cells before light-table/bleed-lightmap setup; stop processing microtiles above the viewport and skip rows below it. Entity drawing and wall ordering remain independent because sprites can extend beyond their tile.
-- Reject completely off-screen outlines before generating outline pixels.
-- Cache decoded opaque sprite runs for direct and translated CLX draws, with clipped run copies and cached translated colors. The 16-entry, two-way cache uses approximately 200 KiB of static RAM, with no heap allocations. Sprites are admitted on repeat use.
-- Limit entries to 4096 encoded bytes, 512 opaque runs and 256x256 dimensions. Larger sprites and blended/per-pixel-lit draws keep the original rendering paths.
-- Compare source and translation-table contents to handle reused pointers, recoloring and lighting changes; clear the cache when the engine clears CLX drawing caches. This validation costs CPU time, so hardware FPS gains must be measured.
-
-## Install and compare
-
-Extract devilutionx-dsi-engine-r7.zip to the SD root, replacing the executable and matching support files. Keep DIABDAT.MPQ, diablo.ini and saves. Launch devilutionx-dsi.nds in DSi mode via TWiLight Menu++.
-
-Compare R6 and R7 in the same scene, with identical map refresh, map visibility, sound and performance-stat settings. Check town/dungeon, moving near all screen edges, inventory/character panels, highlighted entities, lighting changes, save/load and level transitions. Final hardware verification is pending; no FPS improvement is promised.
-
-## Validation
-
-The host suite compares 12000 clipped cached sprite draws against an independent CLX decoder, including transparent overruns, fills/literals, pitch and guard bytes, changed source/table contents, cache clearing, run-budget fallback and invalid streams. Existing display, input, SFX and save-message tests are retained. Build/ROM validation results are recorded in DSI_BUILD_INFO.json and the source archive.
+See [R8_NOTES.md](R8_NOTES.md) for changes and diagnostics, [DSI_PORT.md](DSI_PORT.md) for port details, and [UPSTREAM_README.md](UPSTREAM_README.md) for upstream project information. Build with `Build-DSi.ps1` using devkitARM, libnds, Calico, CMake and Ninja. Dependency source overrides are supported through the script's `dsi-vendor` directory.
 
 ---
 

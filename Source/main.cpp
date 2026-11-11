@@ -27,6 +27,7 @@
 
 #include "diablo.h"
 #ifdef __DSI__
+#include <config.h>
 #include <nds.h>
 #include <fat.h>
 #include <sys/stat.h>
@@ -63,7 +64,7 @@ extern "C" int main(int argc, char **argv)
 	consoleDebugInit(DebugDevice_CONSOLE);
 	defaultExceptionHandler();
 	setvbuf(stdout, nullptr, _IONBF, 0);
-	printf("DevilutionX DSi R7\nNative scene samples\n");
+	printf("DevilutionX DSi\n%s\n", PROJECT_VERSION);
 	if (!isDSiMode() || !fatInitDefault()) {
 		printf("DSi mode and SD access required.\nSTART: exit\n");
 		while (pmMainLoop()) { swiWaitForVBlank(); scanKeys(); if (keysDown() & KEY_START) break; }
@@ -71,7 +72,7 @@ extern "C" int main(int argc, char **argv)
 	}
 	mkdir("sd:/devilutionx", 0777);
 	if (chdir("sd:/devilutionx") != 0) return 1;
-	DsiTraceInit();
+	DsiTraceInit(PROJECT_VERSION);
 	DsiTrace("SD mounted, DSi mode confirmed");
 	devilution::paths::SetBasePath("sd:/devilutionx/");
 	devilution::paths::SetPrefPath("sd:/devilutionx/");
