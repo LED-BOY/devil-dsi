@@ -56,9 +56,21 @@ static uint8_t *scene_base;
 static unsigned scene_pitch, scene_height, scene_rows;
 static uintptr_t scene_bytes;
 static int scene_packed, scene_ready;
-static uint16_t scene_next_x[SceneWidth + 1], scene_x[DSI_WIDTH + 1], scene_y[DSI_HEIGHT + 1];
-/* Zero means the logical row is skipped. Other entries are native row + 1. */
-static uint8_t scene_row[SceneHeight], scene_previous_y[SceneHeight];
+static unsigned scene_sample_width;
+static int world_fast_mode;
+typedef struct {
+    uint16_t next_x[SceneWidth + 1], x[DSI_WIDTH + 1], y[DSI_HEIGHT + 1];
+    /* Zero skips the logical row. Other entries are packed row + 1. */
+    uint8_t row[SceneHeight], previous_y[SceneHeight];
+    int ready;
+} SceneGrid;
+static SceneGrid scene_grids[3];
+static const SceneGrid *scene_grid;
+#define scene_next_x (scene_grid->next_x)
+#define scene_x (scene_grid->x)
+#define scene_y (scene_grid->y)
+#define scene_row (scene_grid->row)
+#define scene_previous_y (scene_grid->previous_y)
 static uint8_t scene_pixels[DSI_WIDTH * DSI_HEIGHT] __attribute__((aligned(4)));
 
 static inline uint8_t *PackedRow(unsigned y)
@@ -71,16 +83,17 @@ static inline uint8_t *PackedRow(unsigned y)
 static DSI_INLINE void CopyPackedPixels(uint8_t *dst, const uint8_t *src,
     unsigned count, unsigned first, const uint8_t *map)
 {
-    const unsigned step = 2 + (first & 1);
+    const unsigned step = scene_sample_width == DSI_WIDTH ? 2 + (first & 1) : 5;
+    const unsigned pair_step = scene_sample_width == DSI_WIDTH ? 5 : 10;
     unsigned i = 0, k = 0;
     if (map) {
-        for (; i + 1 < count; i += 2, k += 5) {
+        for (; i + 1 < count; i += 2, k += pair_step) {
             dst[i] = map[src[k]];
             dst[i + 1] = map[src[k + step]];
         }
         if (i < count) dst[i] = map[src[k]];
     } else {
-        for (; i + 1 < count; i += 2, k += 5) {
+        for (; i + 1 < count; i += 2, k += pair_step) {
             dst[i] = src[k];
             dst[i + 1] = src[k + step];
         }
@@ -270,31 +283,42 @@ int DsiDrawCachedClx(uint8_t *dst, unsigned pitch, int outWidth, int outHeight,
     return 1;
 }
 
+/* Coordinate tables change only when entering or leaving approximate world
+ * drawing. The regular packed buffer and all UI drawing use the full grid. */
+static void SetSceneGrid(unsigned width, unsigned height)
+{
+    const unsigned mode = height == DSI_HEIGHT ? 0 : width == DSI_WIDTH ? 1 : 2;
+    SceneGrid *grid = &scene_grids[mode];
+    if (!grid->ready) {
+        unsigned j = 0;
+        for (unsigned i = 0; i <= width; ++i) grid->x[i] = i * SceneWidth / width;
+        for (unsigned i = 0; i <= height; ++i) grid->y[i] = i * SceneHeight / height;
+        for (unsigned i = 0; i < height; ++i) {
+            grid->row[grid->y[i]] = i + 1;
+            for (unsigned y = grid->y[i]; y < grid->y[i + 1]; ++y)
+                grid->previous_y[y] = i;
+        }
+        for (unsigned i = 0; i <= SceneWidth; ++i) {
+            while (grid->x[j] < i) ++j;
+            grid->next_x[i] = j;
+        }
+        grid->ready = 1;
+    }
+    scene_grid = grid;
+    scene_sample_width = width;
+}
+
 /* Keep the camera and all sprite positions in logical coordinates. */
 static int BeginSceneSamples(uint8_t *base, unsigned pitch, unsigned width,
     unsigned height, unsigned viewHeight, int packed)
 {
-    static int tables_ready;
     DsiSceneSampling = 0;
     if (!base || width != SceneWidth || height != SceneHeight || viewHeight == 0
         || viewHeight > SceneHeight || pitch < SceneWidth)
         return 0;
 
-    if (!tables_ready) {
-        unsigned j = 0;
-        for (unsigned i = 0; i <= DSI_WIDTH; ++i) scene_x[i] = i * SceneWidth / DSI_WIDTH;
-        for (unsigned i = 0; i <= DSI_HEIGHT; ++i) scene_y[i] = i * SceneHeight / DSI_HEIGHT;
-        for (unsigned i = 0; i < DSI_HEIGHT; ++i) {
-            scene_row[scene_y[i]] = i + 1;
-            for (unsigned y = scene_y[i]; y < scene_y[i + 1]; ++y)
-                scene_previous_y[y] = i;
-        }
-        for (unsigned i = 0; i <= SceneWidth; ++i) {
-            while (scene_x[j] < i) ++j;
-            scene_next_x[i] = j;
-        }
-        tables_ready = 1;
-    }
+    world_fast_mode = 0;
+    SetSceneGrid(DSI_WIDTH, DSI_HEIGHT);
     const unsigned rows = (viewHeight * DSI_HEIGHT + SceneHeight - 1) / SceneHeight;
     if (packed && (!scene_ready || base != scene_base || pitch != scene_pitch || rows != scene_rows))
         memset(scene_pixels, 0, rows * DSI_WIDTH);
@@ -317,6 +341,45 @@ void DsiBeginSceneSamples(uint8_t *base, unsigned pitch, unsigned width, unsigne
 int DsiBeginPackedScene(uint8_t *base, unsigned pitch, unsigned width, unsigned height, unsigned viewHeight)
 {
     return BeginSceneSamples(base, pitch, width, height, viewHeight, 1);
+}
+
+void DsiBeginWorldSamples(int mode)
+{
+    if (!DsiSceneSampling || !scene_packed || world_fast_mode || mode < 1 || mode > 2)
+        return;
+    world_fast_mode = mode;
+    const unsigned width = mode == 2 ? DSI_WIDTH / 2 : DSI_WIDTH;
+    const unsigned rows = (scene_rows + 1) / 2;
+    /* Preserve the previous background for transparent draws. Compact from
+     * top to bottom so unread source rows and columns stay intact. */
+    for (unsigned y = 0; y < rows; ++y) {
+        const uint8_t *src = scene_pixels + y * 2 * DSI_WIDTH;
+        uint8_t *dst = scene_pixels + y * DSI_WIDTH;
+        if (mode == 2) {
+            for (unsigned x = 0; x < width; ++x) dst[x] = src[x * 2];
+        } else if (dst != src) {
+            memcpy(dst, src, width);
+        }
+    }
+    SetSceneGrid(width, DSI_HEIGHT / 2);
+}
+
+void DsiEndWorldSamples(void)
+{
+    if (!world_fast_mode) return;
+    /* Expand from bottom to top, with a right-to-left horizontal pass, so
+     * all compact samples are read before their storage is overwritten. */
+    for (unsigned y = scene_rows; y-- > 0;) {
+        const uint8_t *src = scene_pixels + (y / 2) * DSI_WIDTH;
+        uint8_t *dst = scene_pixels + y * DSI_WIDTH;
+        if (world_fast_mode == 2) {
+            for (unsigned x = DSI_WIDTH; x-- > 0;) dst[x] = src[x / 2];
+        } else if (dst != src) {
+            memcpy(dst, src, DSI_WIDTH);
+        }
+    }
+    world_fast_mode = 0;
+    SetSceneGrid(DSI_WIDTH, DSI_HEIGHT);
 }
 
 static inline int LogicalSpan(const uint8_t *pixel, unsigned length, unsigned *x, unsigned *y)
@@ -391,6 +454,7 @@ static void ExpandScene(int packed)
 void DsiEndSceneSamples(int expandForReader)
 {
     if (!DsiSceneSampling) return;
+    DsiEndWorldSamples();
     DsiSceneSampling = 0;
     if (scene_packed)
         scene_ready = 1;
@@ -415,4 +479,6 @@ void DsiRestorePackedScene(void)
 void DsiDiscardPackedScene(void)
 {
     scene_ready = 0;
+    world_fast_mode = 0;
+    SetSceneGrid(DSI_WIDTH, DSI_HEIGHT);
 }

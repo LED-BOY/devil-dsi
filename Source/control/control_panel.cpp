@@ -522,6 +522,14 @@ void CheckMainPanelButtonDead()
 
 void DoAutoMap()
 {
+#ifdef __DSI__
+	auto &options = GetOptions().Dsi;
+	if (*options.topMapShortcut) {
+		AutomapActive = false;
+		options.topMap.SetValue(!*options.topMap);
+		return;
+	}
+#endif
 	if (!AutomapActive)
 		StartAutomap();
 	else
@@ -530,6 +538,12 @@ void DoAutoMap()
 
 void CycleAutomapType()
 {
+#ifdef __DSI__
+	if (*GetOptions().Dsi.topMapShortcut) {
+		DoAutoMap();
+		return;
+	}
+#endif
 	if (!AutomapActive) {
 		StartAutomap();
 		return;

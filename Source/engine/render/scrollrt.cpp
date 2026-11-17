@@ -104,6 +104,9 @@ enum OutlineColors : uint8_t {
 	OutlineColorsObject = (PAL16_YELLOW + 2),
 	OutlineColorsTowner = (PAL16_BEIGE + 6),
 	OutlineColorsMonster = (PAL16_RED + 9),
+#ifdef __DSI__
+	OutlineColorsEnemy = (PAL16_BLUE + 7),
+#endif
 };
 
 bool AutoMapShowItems;
@@ -797,9 +800,19 @@ void DrawMonsterHelper(const Surface &out, Point tilePosition, Point targetBuffe
 	const Displacement offset = monster.getRenderingOffset(sprite);
 
 	const Point monsterRenderPosition = targetBufferPosition + offset;
+#ifdef __DSI__
+	const bool highlightEnemy = *GetOptions().Dsi.highlightEnemies
+	    && (monster.flags & MFLAG_GOLEM) == 0 && !monster.hasNoLife()
+	    && !(monster.talkMsg != TEXT_NONE && M_Talker(monster));
+	if (mi == pcursmonst || highlightEnemy) {
+		const uint8_t color = mi == pcursmonst ? OutlineColorsMonster : OutlineColorsEnemy;
+		ClxDrawOutlineSkipColorZero(out, color, monsterRenderPosition, sprite);
+	}
+#else
 	if (mi == pcursmonst) {
 		ClxDrawOutlineSkipColorZero(out, OutlineColorsMonster, monsterRenderPosition, sprite);
 	}
+#endif
 	DrawMonster(out, tilePosition, monsterRenderPosition, monster, lightTableIndex);
 }
 
@@ -1367,6 +1380,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset, [[may
 	    && !*GetOptions().Graphics.zoom && !*GetOptions().Graphics.perPixelLighting;
 	if (sampleLogicalScene)
 		DsiBeginSceneSamples(out.begin(), out.pitch(), out.w(), fullOut.h(), out.h());
+	DsiBeginWorldSamples(*GetOptions().Dsi.fastDrawing);
 #endif
 	DrawFloor(out, lightmap, position, Point {} + offset, rows, columns);
 
@@ -1374,6 +1388,7 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset, [[may
 
 	DrawOOB(out, lightmap, position, Point {} + offset, rows, columns);
 #ifdef __DSI__
+	DsiEndWorldSamples();
 	if (sampleLogicalScene)
 		DsiEndSceneSamples(readingMenu);
 #endif

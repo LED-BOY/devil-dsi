@@ -244,7 +244,12 @@ struct OutlinePixelsCacheEntry {
 	const void *spriteData = nullptr;
 	bool skipColorIndexZero;
 };
-OutlinePixelsCacheEntry OutlinePixelsCache;
+#ifdef __DSI__
+// Keep several animation outlines warm when many visible enemies are highlighted.
+OutlinePixelsCacheEntry OutlinePixelsCache[8];
+#else
+OutlinePixelsCacheEntry OutlinePixelsCache[1];
+#endif
 
 void PopulateOutlinePixelsForRow(
     const OutlineRowSolidRuns &runs,
@@ -390,16 +395,21 @@ void GetOutline(ClxSprite sprite, OutlinePixels &result) // NOLINT(readability-f
 }
 
 template <bool SkipColorIndexZero>
-void UpdateOutlinePixelsCache(ClxSprite sprite)
+const OutlinePixels &UpdateOutlinePixelsCache(ClxSprite sprite)
 {
-	if (OutlinePixelsCache.spriteData == sprite.pixelData()
-	    && OutlinePixelsCache.skipColorIndexZero == SkipColorIndexZero) {
-		return;
+#ifdef __DSI__
+	const uintptr_t key = reinterpret_cast<uintptr_t>(sprite.pixelData());
+	auto &entry = OutlinePixelsCache[((key >> 4) ^ (key >> 12)) & 7];
+#else
+	auto &entry = OutlinePixelsCache[0];
+#endif
+	if (entry.spriteData != sprite.pixelData() || entry.skipColorIndexZero != SkipColorIndexZero) {
+		entry.skipColorIndexZero = SkipColorIndexZero;
+		entry.spriteData = sprite.pixelData();
+		entry.outlinePixels.clear();
+		GetOutline<SkipColorIndexZero>(sprite, entry.outlinePixels);
 	}
-	OutlinePixelsCache.skipColorIndexZero = SkipColorIndexZero;
-	OutlinePixelsCache.spriteData = sprite.pixelData();
-	OutlinePixelsCache.outlinePixels.clear();
-	GetOutline<SkipColorIndexZero>(sprite, OutlinePixelsCache.outlinePixels);
+	return entry.outlinePixels;
 }
 
 template <bool SkipColorIndexZero>
@@ -409,12 +419,12 @@ void RenderClxOutline(const Surface &out, Point position, ClxSprite sprite, uint
 	// Outline pixels extend one pixel outside the source rectangle.
 	if (!DsiSpriteVisible(position.x - 1, position.y + 1, sprite.width() + 2, sprite.height() + 2, out.w(), out.h())) return;
 #endif
-	UpdateOutlinePixelsCache<SkipColorIndexZero>(sprite);
+	const OutlinePixels &outlinePixels = UpdateOutlinePixelsCache<SkipColorIndexZero>(sprite);
 	--position.x;
 	position.y -= sprite.height();
 	if (position.x >= 0 && position.x + sprite.width() + 2 < out.w()
 	    && position.y >= 0 && position.y + sprite.height() + 2 < out.h()) {
-		for (const auto &[x, y] : OutlinePixelsCache.outlinePixels) {
+		for (const auto &[x, y] : outlinePixels) {
 			uint8_t *pixel = out.at(position.x + x, position.y + y);
 #ifdef __DSI__
 			if (DsiSceneSampling && DsiSampleSpan(pixel, nullptr, 1, color, nullptr, nullptr, 0))
@@ -423,7 +433,7 @@ void RenderClxOutline(const Surface &out, Point position, ClxSprite sprite, uint
 			*pixel = color;
 		}
 	} else {
-		for (const auto &[x, y] : OutlinePixelsCache.outlinePixels) {
+		for (const auto &[x, y] : outlinePixels) {
 			out.SetPixel(Point(position.x + x, position.y + y), color);
 		}
 	}
@@ -648,7 +658,8 @@ void ClearClxDrawCache()
 #ifdef __DSI__
 	DsiClearSpriteCache();
 #endif
-	OutlinePixelsCache.spriteData = nullptr;
+	for (auto &entry : OutlinePixelsCache)
+		entry.spriteData = nullptr;
 }
 
 } // namespace devilution

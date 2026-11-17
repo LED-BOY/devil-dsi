@@ -1,3 +1,18 @@
+# DevilutionX for Nintendo DSi — R9
+
+R9 includes approximate Fast Drawing modes, top-map shortcut control and optional enemy highlighting. This prerelease packages build **R9-test2**.
+
+Download the full SD-card ZIP from the [R9 release](https://github.com/LED-BOY/devil-dsi/releases/tag/r9), extract it to the SD root, and launch `devilutionx-dsi.nds` from TWiLight Menu++ in DSi mode. Supply your own `sd:/devilutionx/DIABDAT.MPQ` and keep your settings and saves.
+
+Under Settings → Nintendo DSi, Fast Drawing defaults to Balanced. Fastest uses 2×2 world pixels and Off selects R8's sampling. Native Scene Samples must be enabled, with Graphics Zoom and Per-Pixel Lighting off. Text and the HUD are drawn after the sampled world is expanded.
+
+Map Shortcut Uses Top Map defaults to On. With default bindings, hold START and press Down to toggle the top map. Highlight Enemies defaults to Off. Enable it for blue outlines on visible enemies and red on the current target.
+
+See [R9_NOTES.md](R9_NOTES.md) for mode details and testing instructions. The ARM build and host regressions passed. Hardware verification and FPS measurements are pending. Approximation reduces image detail, and enemy outlines add drawing work.
+
+
+---
+
 # DevilutionX for Nintendo DSi — R8
 
 R8 renders ordinary gameplay into a packed native display buffer and uses ARM9 drawing and screen-copy optimizations. It includes a Diablo launcher icon, enemy sound preloading, peak frame timing and a revised in-game save reload path.

@@ -36,4 +36,13 @@ result = subprocess.run([tcc, '-std=c99', '-I' + str(engine / 'Source/platform/d
                          '-o', str(sprite_exe)])
 if result.returncode:
     raise SystemExit(result.returncode)
-raise SystemExit(subprocess.run([str(sprite_exe)]).returncode)
+result = subprocess.run([str(sprite_exe)])
+if result.returncode:
+    raise SystemExit(result.returncode)
+fast_exe = test / 'fast_drawing_test.exe'
+result = subprocess.run([tcc, '-std=c99', '-I' + str(engine / 'Source/platform/dsi'),
+                         str(test / 'fast_drawing_test.c'), str(engine / 'Source/platform/dsi/dsi_render.c'),
+                         str(engine / 'Source/platform/dsi/dsi_video.c'), '-o', str(fast_exe)])
+if result.returncode:
+    raise SystemExit(result.returncode)
+raise SystemExit(subprocess.run([str(fast_exe)]).returncode)

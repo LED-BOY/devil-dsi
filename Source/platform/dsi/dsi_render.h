@@ -21,6 +21,10 @@ void DsiClearSpriteCache(void);
 extern int DsiSceneSampling;
 void DsiBeginSceneSamples(uint8_t *base, unsigned pitch, unsigned width, unsigned canvasHeight, unsigned viewHeight);
 int DsiBeginPackedScene(uint8_t *base, unsigned pitch, unsigned width, unsigned height, unsigned viewHeight);
+/* World-only approximation. 0 = native, 1 = duplicate rows, 2 = 2x2 blocks.
+ * End restores the full packed grid before text, cursor and HUD are drawn. */
+void DsiBeginWorldSamples(int mode);
+void DsiEndWorldSamples(void);
 void DsiEndSceneSamples(int expandForReader);
 const uint8_t *DsiPackedScene(const void *base, unsigned pitch, unsigned *rows);
 void DsiRestorePackedScene(void);

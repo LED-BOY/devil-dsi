@@ -227,6 +227,8 @@ namespace {
 void ApplyDsiOptions()
 {
 	auto &options = GetOptions().Dsi;
+	if (*options.fastDrawing < 0 || *options.fastDrawing > 2)
+		options.fastDrawing.SetValue(1);
 	if (*options.menuZoom != 150 && *options.menuZoom != 200 && *options.menuZoom != 250)
 		options.menuZoom.SetValue(200);
 	if (*options.mapScale != 25 && *options.mapScale != 35 && *options.mapScale != 50)
@@ -262,10 +264,15 @@ DsiOptions::DsiOptions()
           { { 10, "10 Hz" }, { 15, "15 Hz" }, { 0, N_("Every Frame") } })
     , performanceStats("Performance Stats", OptionEntryFlags::None, N_("Performance Stats"), N_("Show gameplay FPS, average drawing and copy times, and the slowest frame on the top screen."), false)
     , topMap("Top Map", OptionEntryFlags::None, N_("Top Map"), N_("Show the gameplay map. Off skips map drawing and copying; menu reading zoom is kept. Performance Stats can still show on black."), true)
+    , topMapShortcut("Map Shortcut Uses Top Map", OptionEntryFlags::None, N_("Map Shortcut Uses Top Map"), N_("Use the automap shortcut and the controller map action to turn the top-screen map on or off. Off uses the bottom automap."), true)
+    , nativeScene("Native Scene Samples", OptionEntryFlags::None, N_("Native Scene Samples"), N_("Render gameplay on the DSi display grid. Requires the standard layout with Graphics Zoom and Per-Pixel Lighting off."), true)
+    , fastDrawing("Fast Drawing", OptionEntryFlags::None, N_("Fast Drawing"), N_("Trade world detail for speed. Balanced duplicates rows; Fastest draws 2x2 blocks. Requires Native Scene Samples. Text and HUD use the full display grid."), 1,
+          { { 0, N_("Off") }, { 1, N_("Balanced") }, { 2, N_("Fastest") } })
     , soundEffects("Sound Effects", OptionEntryFlags::None, N_("Sound Effects"), N_("Experimental DSi hardware sound effects. Music and movie audio are not supported. Turn off to reduce memory and CPU use."), true)
-    , nativeScene("Native Scene Samples", OptionEntryFlags::None, N_("Native Scene Samples"), N_("Render gameplay on the 256x192 display grid without changing the camera. Requires the standard layout with Graphics Zoom and Per-Pixel Lighting off."), true)
+    , highlightEnemies("Highlight Enemies", OptionEntryFlags::None, N_("Highlight Enemies"), N_("Outline visible enemies in blue and the selected enemy in red. Additional outlines can reduce drawing speed."), false)
     , shoulderDefaultsVersion("Shoulder Defaults Version", OptionEntryFlags::Invisible, "Shoulder Defaults Version", "DSi shoulder default migration version.", 0, { 0, 1 })
 {
+	fastDrawing.SetValueChangedCallback(ApplyDsiOptions);
 	menuZoom.SetValueChangedCallback(ApplyDsiOptions);
 	mapScale.SetValueChangedCallback(ApplyDsiOptions);
 	mapRefresh.SetValueChangedCallback(ApplyDsiOptions);
@@ -278,7 +285,7 @@ DsiOptions::DsiOptions()
 
 std::vector<OptionEntryBase *> DsiOptions::GetEntries()
 {
-	return { &nativeScene, &menuZoom, &topMap, &mapScale, &mapRefresh, &performanceStats, &lButton, &rButton, &soundEffects, &shoulderDefaultsVersion };
+	return { &nativeScene, &fastDrawing, &menuZoom, &topMap, &topMapShortcut, &mapScale, &mapRefresh, &performanceStats, &lButton, &rButton, &soundEffects, &highlightEnemies, &shoulderDefaultsVersion };
 }
 #endif
 
