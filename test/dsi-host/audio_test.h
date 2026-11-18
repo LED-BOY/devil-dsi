@@ -89,7 +89,7 @@ static int CheckAudio(void)
     const uint64_t saved_ticks = host_ticks;
     host_ticks = (uint64_t)0xfffffff0u * 1000;
     opens = fixture_opens;
-    if (!DsiAudioWarm("warmed-monster") || fixture_opens != opens + 1 || host_sound_active) return 0;
+    if (!DsiAudioWarmMonster("warmed-monster", 1) || fixture_opens != opens + 1 || host_sound_active) return 0;
     if (!DsiAudioPlayMonster(&owners[0], "cold-monster-a", 0, 0, 0) || fixture_opens != opens + 2) return 0;
     if (!DsiAudioPlayMonster(&owners[1], "warmed-monster", 0, 0, 0) || fixture_opens != opens + 2) return 0;
     host_ticks += 149000; /* Cross the 32-bit SDL tick wrap. */
@@ -106,7 +106,19 @@ static int CheckAudio(void)
         || fixture_opens != opens + 4) return 0;
     puts("PASS: session reload stops active voices and frees samples while keeping sound enabled");
     DsiAudioQuit();
-    if (DsiAudioWarm("disabled-warmup") || fixture_opens != opens + 4) return 0;
+    if (DsiAudioWarmMonster("disabled-warmup", 0) || fixture_opens != opens + 4) return 0;
+    DsiAudioInit();
+    if (!DsiAudioWarmMonster("cold-monster-b", 0)) return 0;
+    for (int i = 0; i < 48; ++i) {
+        char name[32]; sprintf(name, "attack%d", i);
+        if (!DsiAudioWarmMonster(name, 1)) return 0;
+    }
+    opens = fixture_opens;
+    if (!DsiAudioPlayMonster(&owners[0], "cold-monster-b", 0, 0, 0) || fixture_opens != opens) return 0;
+    DsiAudioReleaseLevelPriorities();
+    if (!DsiAudioWarmMonster("next-level-special", 0)) return 0;
+    DsiAudioQuit();
+    puts("PASS: repeated monster miss survives level preloading under cache pressure");
     host_ticks = saved_ticks;
     puts("PASS: warmed monster sounds avoid combat reads; cold loads are paced across tick wrap and skipped at the voice limit");
     puts("PASS: hardware SFX path: SDL PCM8/stereo16/IMA decode, samples/gain/pan, cache reuse/eviction/pinning, voice limit, mute/missing/oversize and shutdown");

@@ -9,7 +9,7 @@ enum { CLIPS = 32, VOICES = 16, CACHE_LIMIT = 1024 * 1024,
 typedef struct {
     char path[256];
     Uint8 *pcm;
-    unsigned bytes, rate, duration, age;
+    unsigned bytes, rate, duration, age, warm_priority;
 } Clip;
 typedef struct { const void *owner; Clip *clip; } Voice;
 static Clip clips[CLIPS];
@@ -40,11 +40,36 @@ static void evict(Clip *clip)
     SDL_memset(clip, 0, sizeof(*clip));
 }
 
-static Clip *oldest_unused(void)
+/* Monster asset paths from InitMonsterSND fit in 64 bytes. Keep a bounded
+ * history across level changes to prioritize repeatedly missed effects. */
+static struct { char path[64]; unsigned misses; } miss_history[64];
+static unsigned next_history;
+static unsigned monster_misses(const char *path, int record)
+{
+    for (unsigned i = 0; i < 64; ++i) {
+        if (miss_history[i].misses && SDL_strcmp(path, miss_history[i].path) == 0) {
+            if (record && miss_history[i].misses < 255) ++miss_history[i].misses;
+            return miss_history[i].misses;
+        }
+    }
+    if (!record || SDL_strlen(path) >= sizeof(miss_history[0].path)) return 0;
+    unsigned slot = next_history++ % 64;
+    SDL_strlcpy(miss_history[slot].path, path, sizeof(miss_history[slot].path));
+    miss_history[slot].misses = 1;
+    return 1;
+}
+
+static Clip *oldest_unused(unsigned warm_priority)
 {
     Clip *oldest = NULL;
     for (int i = 0; i < CLIPS; ++i)
-        if (clips[i].pcm && !in_use(&clips[i]) && (!oldest || clips[i].age < oldest->age)) oldest = &clips[i];
+        if (clips[i].pcm && !in_use(&clips[i])) {
+            Clip *candidate = &clips[i];
+            if (warm_priority && candidate->warm_priority > warm_priority) continue;
+            if (!oldest || (warm_priority && candidate->warm_priority < oldest->warm_priority)
+                || ((!warm_priority || candidate->warm_priority == oldest->warm_priority) && candidate->age < oldest->age))
+                oldest = candidate;
+        }
     return oldest;
 }
 
@@ -58,7 +83,7 @@ static Clip *find_clip(const char *path)
     return NULL;
 }
 
-static Clip *decode_clip(const char *path)
+static Clip *decode_clip(const char *path, unsigned warm_priority)
 {
     if (SDL_strlen(path) >= sizeof(clips[0].path)) return NULL;
     SDL_RWops *file = DsiOpenAudioAsset(path);
@@ -80,7 +105,7 @@ static Clip *decode_clip(const char *path)
     Clip *slot = NULL;
     for (int i = 0; i < CLIPS; ++i) if (!clips[i].pcm) { slot = &clips[i]; break; }
     while (!slot || cache_bytes + bytes > CACHE_LIMIT) {
-        Clip *oldest = oldest_unused();
+        Clip *oldest = oldest_unused(warm_priority);
         if (!oldest) { SDL_FreeWAV(wave); return NULL; }
         evict(oldest);
         if (!slot) slot = oldest;
@@ -107,6 +132,7 @@ static Clip *decode_clip(const char *path)
     SDL_strlcpy(slot->path, path, sizeof(slot->path));
     slot->pcm = pcm; slot->bytes = bytes; slot->rate = spec.freq;
     slot->duration = (unsigned)((Uint64)frames * 1000 / spec.freq);
+    slot->warm_priority = warm_priority;
     slot->age = ++age;
     cache_bytes += bytes;
     DC_FlushRange(pcm, bytes);
@@ -141,10 +167,12 @@ static int play(const void *owner, const char *path, int attenuation, int pan, i
 
     Clip *clip = find_clip(path);
     if (!clip) {
+        unsigned misses = monster ? monster_misses(path, 1) : 0;
         if (monster && monster_load_recent
             && (Uint32)(SDL_GetTicks() - monster_load_finished) < MONSTER_LOAD_GAP_MS)
             return 0;
-        clip = decode_clip(path);
+        clip = decode_clip(path, 0);
+        if (clip && monster) clip->warm_priority = 3 + misses;
         if (monster) {
             monster_load_finished = SDL_GetTicks();
             monster_load_recent = 1;
@@ -176,16 +204,29 @@ int DsiAudioPlayMonster(const void *owner, const char *path, int attenuation, in
     return play(owner, path, attenuation, pan, user_volume, 1);
 }
 
-static Clip *load_clip(const char *path)
+static Clip *load_clip(const char *path, unsigned priority)
 {
     if (!ready || !path) return NULL;
     Clip *clip = find_clip(path);
-    if (clip) return clip;
+    if (clip) {
+        if (clip->warm_priority < priority) clip->warm_priority = priority;
+        return clip;
+    }
     collect_finished();
-    return decode_clip(path);
+    return decode_clip(path, priority);
 }
 
-int DsiAudioWarm(const char *path) { return load_clip(path) != NULL; }
+void DsiAudioReleaseLevelPriorities(void)
+{
+    for (unsigned i = 0; i < CLIPS; ++i) clips[i].warm_priority = 0;
+}
+
+int DsiAudioWarmMonster(const char *path, int frequent)
+{
+    if (!ready || !path) return 0;
+    unsigned misses = monster_misses(path, 0);
+    return load_clip(path, misses ? 3 + misses : 1 + !!frequent) != NULL;
+}
 
 int DsiAudioIsPlaying(const void *owner)
 {
@@ -194,7 +235,7 @@ int DsiAudioIsPlaying(const void *owner)
     for (int i = 0; i < VOICES; ++i) if (voices[i].owner == owner) return 1;
     return 0;
 }
-int DsiAudioLength(const char *path) { Clip *clip = load_clip(path); return clip ? (int)clip->duration : 0; }
+int DsiAudioLength(const char *path) { Clip *clip = load_clip(path, 0); return clip ? (int)clip->duration : 0; }
 unsigned DsiAudioCacheBytes(void) { return cache_bytes; }
 void DsiAudioClearCache(void)
 {

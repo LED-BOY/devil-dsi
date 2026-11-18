@@ -294,9 +294,11 @@ static void SetSceneGrid(unsigned width, unsigned height)
         for (unsigned i = 0; i <= width; ++i) grid->x[i] = i * SceneWidth / width;
         for (unsigned i = 0; i <= height; ++i) grid->y[i] = i * SceneHeight / height;
         for (unsigned i = 0; i < height; ++i) {
-            grid->row[grid->y[i]] = i + 1;
+            /* Balanced samples are stored directly in even display rows. */
+            unsigned storage_row = mode == 1 ? 2 * i : i;
+            grid->row[grid->y[i]] = storage_row + 1;
             for (unsigned y = grid->y[i]; y < grid->y[i + 1]; ++y)
-                grid->previous_y[y] = i;
+                grid->previous_y[y] = storage_row;
         }
         for (unsigned i = 0; i <= SceneWidth; ++i) {
             while (grid->x[j] < i) ++j;
@@ -348,18 +350,19 @@ void DsiBeginWorldSamples(int mode)
     if (!DsiSceneSampling || !scene_packed || world_fast_mode || mode < 1 || mode > 2)
         return;
     world_fast_mode = mode;
-    const unsigned width = mode == 2 ? DSI_WIDTH / 2 : DSI_WIDTH;
+    if (mode == 1) {
+        /* Draw into the original even rows, preserving their background. */
+        SetSceneGrid(DSI_WIDTH, DSI_HEIGHT / 2);
+        return;
+    }
+    const unsigned width = DSI_WIDTH / 2;
     const unsigned rows = (scene_rows + 1) / 2;
     /* Preserve the previous background for transparent draws. Compact from
      * top to bottom so unread source rows and columns stay intact. */
     for (unsigned y = 0; y < rows; ++y) {
         const uint8_t *src = scene_pixels + y * 2 * DSI_WIDTH;
         uint8_t *dst = scene_pixels + y * DSI_WIDTH;
-        if (mode == 2) {
-            for (unsigned x = 0; x < width; ++x) dst[x] = src[x * 2];
-        } else if (dst != src) {
-            memcpy(dst, src, width);
-        }
+        for (unsigned x = 0; x < width; ++x) dst[x] = src[x * 2];
     }
     SetSceneGrid(width, DSI_HEIGHT / 2);
 }
@@ -367,15 +370,15 @@ void DsiBeginWorldSamples(int mode)
 void DsiEndWorldSamples(void)
 {
     if (!world_fast_mode) return;
-    /* Expand from bottom to top, with a right-to-left horizontal pass, so
-     * all compact samples are read before their storage is overwritten. */
-    for (unsigned y = scene_rows; y-- > 0;) {
-        const uint8_t *src = scene_pixels + (y / 2) * DSI_WIDTH;
-        uint8_t *dst = scene_pixels + y * DSI_WIDTH;
-        if (world_fast_mode == 2) {
+    if (world_fast_mode == 1) {
+        for (unsigned y = 1; y < scene_rows; y += 2)
+            memcpy(scene_pixels + y * DSI_WIDTH, scene_pixels + (y - 1) * DSI_WIDTH, DSI_WIDTH);
+    } else {
+        /* Expand Fastest in reverse so unread samples stay intact. */
+        for (unsigned y = scene_rows; y-- > 0;) {
+            const uint8_t *src = scene_pixels + (y / 2) * DSI_WIDTH;
+            uint8_t *dst = scene_pixels + y * DSI_WIDTH;
             for (unsigned x = DSI_WIDTH; x-- > 0;) dst[x] = src[x / 2];
-        } else if (dst != src) {
-            memcpy(dst, src, DSI_WIDTH);
         }
     }
     world_fast_mode = 0;

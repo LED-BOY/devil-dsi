@@ -3544,7 +3544,7 @@ std::expected<void, std::string> InitMonsterSND(CMonster &monsterType)
 			*BufCopy(path, "monsters\\", soundSuffix, prefix, j + 1, ".wav") = '\0';
 			ASSIGN_OR_RETURN(monsterType.sounds[i][j], SoundFileLoadWithStatus(path));
 #ifdef __DSI__
-			monsterType.sounds[i][j]->DSB.WarmAsMonsterSound();
+			monsterType.sounds[i][j]->DSB.WarmAsMonsterSound(i < 2); // Attack and hit variants get first priority on a new level.
 #endif
 		}
 	}
@@ -4350,6 +4350,9 @@ void ProcessMonsters()
 
 void FreeMonsters()
 {
+#ifdef __DSI__
+	DsiAudioReleaseLevelPriorities();
+#endif
 	for (CMonster &monsterType : LevelMonsterTypes) {
 		monsterType.animData = nullptr;
 		monsterType.corpseId = 0;

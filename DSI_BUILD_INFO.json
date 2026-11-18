@@ -1,6 +1,6 @@
 {
-  "version_suffix": "-DSi-R9-test2",
-  "hardware_tested": false,
+  "version_suffix": "-DSi-R10",
+  "hardware_tested": true,
   "native_scene_samples_default": true,
   "fast_drawing_default": "Balanced",
   "map_shortcut_uses_top_map_default": true,
@@ -35,8 +35,8 @@
     "palette_entries": 16,
     "includes_user_icon": true
   },
-  "rom_bytes": 2190336,
-  "rom_sha256": "0145d68feb2b38b6dd9f655495542f9b24163475eabab28a84c6b889ad6858ec",
+  "rom_bytes": 2192384,
+  "rom_sha256": "b6447d98627d782a8a455dd5d1c84adba4e6f825b54d3a2a49aa09e818bc6b2d",
   "rom_unit_code": 2,
   "cross_build": "passed",
   "host_tests": "passed",
@@ -79,8 +79,5 @@
       }
     }
   },
-  "source_repository": "https://github.com/LED-BOY/devil-dsi",
-  "source_branch": "release/r9",
-  "source_base_commit": "ee742368c1c1d31a4a306edcb46529985d8c478d",
-  "hardware_status": "R9-test2 build and host tests passed; DSi verification pending"
+  "hardware_test": "Maintainer reported successful play on Nintendo DSi; FPS delta unmeasured."
 }

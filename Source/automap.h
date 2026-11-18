@@ -183,6 +183,7 @@ void AutomapZoomOut();
 void DrawAutomap(const Surface &out);
 #ifdef __DSI__
 /** Native-size, player-centered map without changing the bottom overlay state. */
+bool DsiAutomapChanged();
 void DrawDsiAutomap(const Surface &out);
 #endif
 

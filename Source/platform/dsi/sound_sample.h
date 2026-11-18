@@ -11,10 +11,10 @@ public:
 	void SetPath(const char *path) { path_ = path; }
 	bool IsLoaded() const { return !path_.empty(); }
 	bool IsPlaying() { return DsiAudioIsPlaying(this) != 0; }
-	void WarmAsMonsterSound()
+	void WarmAsMonsterSound(bool frequent)
 	{
 		monsterSound_ = true;
-		DsiAudioWarm(path_.c_str());
+		DsiAudioWarmMonster(path_.c_str(), frequent);
 	}
 	bool PlayWithVolumeAndPan(int attenuation, int userVolume, int pan)
 	{

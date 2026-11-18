@@ -1,3 +1,7 @@
+# DevilutionX for Nintendo DSi — R10
+
+See [R10 notes and installation](R10_NOTES.md) and [download R10](https://github.com/LED-BOY/devil-dsi/releases/tag/r10). The maintainer tested this build on DSi hardware.
+
 # DevilutionX for Nintendo DSi — R9
 
 R9 includes approximate Fast Drawing modes, top-map shortcut control and optional enemy highlighting. This prerelease packages build **R9-test2**.

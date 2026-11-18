@@ -11,7 +11,8 @@ void DsiAudioClearCache(void);
 int DsiAudioPlay(const void *owner, const char *path, int attenuation, int pan, int user_volume);
 /* Warm level sounds while loading. During combat, cache hits play normally
  * and cold monster loads are spaced out to avoid clustered SD reads. */
-int DsiAudioWarm(const char *path);
+void DsiAudioReleaseLevelPriorities(void);
+int DsiAudioWarmMonster(const char *path, int frequent);
 int DsiAudioPlayMonster(const void *owner, const char *path, int attenuation, int pan, int user_volume);
 void DsiAudioStop(const void *owner);
 int DsiAudioIsPlaying(const void *owner);

@@ -133,7 +133,10 @@ constexpr auto RightFrameDisplacement = Displacement { DunFrameWidth, 0 };
 /**
  * @brief Contains all Missile at rendering position
  */
-ankerl::unordered_dense::map<WorldTilePosition, std::vector<Missile *>> MissilesAtRenderingTile;
+// Keep a pool of tile lists. Both the outer vector and each list retain
+// capacity between frames, including frames with no active missiles.
+std::vector<std::vector<Missile *>> MissileTileLists;
+ankerl::unordered_dense::map<WorldTilePosition, size_t> MissilesAtRenderingTile;
 
 /**
  * @brief Could the missile (at the next game tick) collide? This method is a simplified version of CheckMissileCol (for example without random).
@@ -213,7 +216,14 @@ void UpdateMissilesRendererData()
 
 	for (auto &m : Missiles) {
 		UpdateMissileRendererData(m);
-		MissilesAtRenderingTile[m.position.tileForRendering].push_back(&m);
+		const auto [it, inserted] = MissilesAtRenderingTile.try_emplace(m.position.tileForRendering, MissilesAtRenderingTile.size());
+		if (inserted) {
+			if (it->second == MissileTileLists.size())
+				MissileTileLists.emplace_back();
+			else
+				MissileTileLists[it->second].clear();
+		}
+		MissileTileLists[it->second].push_back(&m);
 	}
 }
 
@@ -379,7 +389,7 @@ void DrawMissile(const Surface &out, WorldTilePosition tilePosition, Point targe
 {
 	const auto it = MissilesAtRenderingTile.find(tilePosition);
 	if (it == MissilesAtRenderingTile.end()) return;
-	for (Missile *missile : it->second) {
+	for (Missile *missile : MissileTileLists[it->second]) {
 		DrawMissilePrivate(out, *missile, targetBufferPosition, pre, lightTableIndex);
 	}
 }
@@ -2125,9 +2135,17 @@ void DrawAndBlit()
 			static SDLSurfaceUniquePtr mapSurface { SDL_CreateRGBSurfaceFrom(
 			    DsiMapBuffer(), DSI_WIDTH, DSI_HEIGHT, 8, DSI_WIDTH, 0, 0, 0, 0) };
 			if (!mapSurface) ErrSdl();
-			SDL_FillRect(mapSurface.get(), nullptr, 0);
-			if (DsiTopMapEnabled()) DrawDsiAutomap(Surface(mapSurface.get()));
-			if (DsiPerfEnabled()) {
+			const bool mapChanged = DsiTopMapEnabled() && DsiAutomapChanged();
+			const bool repaint = mapChanged || DsiMapInvalid();
+			if (repaint) {
+				SDL_FillRect(mapSurface.get(), nullptr, 0);
+				if (DsiTopMapEnabled()) DrawDsiAutomap(Surface(mapSurface.get()));
+			}
+			static uint32_t lastStatsPaint;
+			const uint32_t now = SDL_GetTicks();
+			const bool statsDue = DsiPerfEnabled() && (repaint || now - lastStatsPaint >= 500);
+			if (statsDue) {
+				lastStatsPaint = now;
 				DsiPerfStats stats {};
 				DsiPerfGetStats(&stats);
 				SDL_Rect statsBounds { 0, 0, DSI_WIDTH, 58 };
@@ -2141,7 +2159,10 @@ void DrawAndBlit()
 				DrawString(mapOut, StrCat("Peak ", stats.peak_us / 1000,
 				    " L ", stats.peak_logic_us / 1000, " D ", stats.peak_draw_us / 1000, " ms"), Point { 2, 44 });
 			}
-			DsiMapReady();
+			if (repaint || statsDue)
+				DsiMapReady();
+			else
+				DsiMapCheckComplete();
 			DsiPerfRecord(DSI_PERF_MAP, mapStarted);
 		}
 	}

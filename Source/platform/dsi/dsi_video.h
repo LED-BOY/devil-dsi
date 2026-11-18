@@ -27,6 +27,8 @@ void DsiConfigurePerformance(int map_hz, int show_stats);
 void DsiConfigureMap(int enabled);
 int DsiTopMapEnabled(void);
 int DsiMapNeedsRedraw(void);
+int DsiMapInvalid(void);
+void DsiMapCheckComplete(void);
 void DsiMapReady(void);
 enum DsiPerfStage { DSI_PERF_RENDER, DSI_PERF_MAP, DSI_PERF_BOTTOM, DSI_PERF_TOP, DSI_PERF_COUNT };
 struct DsiPerfStats {

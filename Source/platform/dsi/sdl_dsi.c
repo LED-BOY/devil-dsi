@@ -67,6 +67,9 @@ int DsiMapNeedsRedraw(void)
             || (Uint32)(SDL_GetTicks() - map_updated) >= (map_enabled ? (1000u + map_hz - 1) / map_hz : 500));
 }
 
+int DsiMapInvalid(void) { return !map_valid; }
+void DsiMapCheckComplete(void) { map_updated = SDL_GetTicks(); }
+
 void DsiMapReady(void)
 {
     map_updated = SDL_GetTicks();

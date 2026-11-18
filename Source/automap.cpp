@@ -10,6 +10,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#ifdef __DSI__
+#include <cstring>
+#endif
 
 #include "control/control.hpp"
 #include "engine/load_file.hpp"
@@ -39,6 +42,7 @@ namespace {
 Point Automap;
 #ifdef __DSI__
 bool DsiDedicatedMap;
+bool DsiMapSnapshotValid;
 #endif
 
 bool MapPanelsCoverView()
@@ -1596,6 +1600,9 @@ void InitAutomapOnce()
 
 void InitAutomap()
 {
+#ifdef __DSI__
+	DsiMapSnapshotValid = false;
+#endif
 	size_t tileCount = 0;
 	const std::unique_ptr<AutomapTile[]> tileTypes = LoadAutomapData(tileCount);
 
@@ -1897,6 +1904,50 @@ void DrawAutomap(const Surface &out)
 }
 
 #ifdef __DSI__
+// The top buffer retains its pixels across refreshes. Compare the inputs
+// for a stationary single-player view; moving views use normal redraws.
+bool DsiAutomapChanged()
+{
+	const Player &player = *MyPlayer;
+	if (gbIsMultiplayer || player.isWalking()) {
+		DsiMapSnapshotValid = false;
+		return true;
+	}
+#ifdef _DEBUG
+	return true;
+#endif
+	const std::array<int, 17> key { ViewPosition.x, ViewPosition.y, player.position.tile.x,
+		player.position.tile.y, static_cast<int>(player._pdir), player.getId(),
+		static_cast<int>(player.plractive), static_cast<int>(player._pLvlChanging),
+		static_cast<int>(player.isOnActiveLevel()), DsiTopMapScale(), static_cast<int>(leveltype),
+		currlevel, setlevel, static_cast<int>(setlvlnum), static_cast<int>(Quests[Q_PWATER]._qactive),
+		static_cast<int>(sgGameInitInfo.nDifficulty), static_cast<int>(*GetOptions().Graphics.showFPS) };
+	static std::array<int, 17> previousKey;
+	static decltype(AutomapView) explored;
+	static decltype(dungeon) terrain;
+	static std::string language;
+	std::array<uint16_t, 16> items {};
+	if (AutoMapShowItems) {
+		const Point tile = player.position.tile;
+		for (int x = std::max(0, tile.x - 8); x < std::min(int(MAXDUNX), tile.x + 8); ++x)
+			for (int y = std::max(0, tile.y - 8); y < std::min(int(MAXDUNY), tile.y + 8); ++y)
+				if (dItem[x][y] != 0)
+					items[x - tile.x + 8] |= 1U << (y - tile.y + 8);
+	}
+	static decltype(items) previousItems;
+	if (DsiMapSnapshotValid && key == previousKey && items == previousItems
+	    && language == GetLanguageCode() && std::memcmp(explored, AutomapView, sizeof(explored)) == 0
+	    && std::memcmp(terrain, dungeon, sizeof(terrain)) == 0)
+		return false;
+	previousKey = key;
+	previousItems = items;
+	language = GetLanguageCode();
+	std::memcpy(explored, AutomapView, sizeof(explored));
+	std::memcpy(terrain, dungeon, sizeof(terrain));
+	DsiMapSnapshotValid = true;
+	return true;
+}
+
 void DrawDsiAutomap(const Surface &out)
 {
 	const auto savedType = CurrentAutomapType;

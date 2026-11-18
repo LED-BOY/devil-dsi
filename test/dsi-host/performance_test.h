@@ -17,6 +17,12 @@ static int CheckPerformance(SDL_Surface *screen)
     if (DsiMapNeedsRedraw()) return 0;
     host_ticks += 1000;
     if (!DsiMapNeedsRedraw()) return 0;
+    if (DsiMapInvalid()) return 0;
+    DsiMapCheckComplete();
+    SDL_Flip(screen);
+    if (DsiMapNeedsRedraw() || (unsigned char)host_sub_vram[0] != 71) return 0;
+    host_ticks += 67000;
+    if (!DsiMapNeedsRedraw()) return 0;
     DsiMapReady(); SDL_Flip(screen);
     if ((unsigned char)host_sub_vram[0] != 99 || DsiMapNeedsRedraw()) return 0;
     DsiConfigurePerformance(10, 0);
