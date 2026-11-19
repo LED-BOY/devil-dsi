@@ -428,7 +428,7 @@ if(NINTENDO_DSI)
   add_custom_command(TARGET ${BIN_TARGET} POST_BUILD
     COMMAND "${DEVKITPRO}/tools/bin/ndstool.exe" -c "${CMAKE_BINARY_DIR}/devilutionx-dsi.nds"
       -9 $<TARGET_FILE:${BIN_TARGET}> -7 "${DEVKITPRO}/calico/bin/ds7_maine.elf"
-      -b "${_dsi_icon}" "DevilutionX DSi;R10;Sound effects"
+      -b "${_dsi_icon}" "DevilutionX DSi;R11;Music and sound effects"
     VERBATIM)
 endif()
 

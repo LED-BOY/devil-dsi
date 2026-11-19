@@ -900,6 +900,7 @@ struct DsiOptions : OptionCategoryBase {
 	OptionEntryBoolean nativeScene;
 	OptionEntryEnum<int> fastDrawing;
 	OptionEntryBoolean soundEffects;
+	OptionEntryBoolean music;
 	OptionEntryBoolean highlightEnemies;
 	OptionEntryInt<int> shoulderDefaultsVersion;
 };

@@ -22,7 +22,7 @@ for include in [test / 'include', sdl / 'include', sdl / 'src', sdl / 'src/video
 exe = test / 'palette_test.exe'
 args += [str(p) for p in sources] + [str(driver), str(engine / 'Source/platform/dsi/dsi_video.c'), str(engine / 'Source/platform/dsi/dsi_render.c'),
                                    str(engine / 'Source/platform/dsi/dsi_audio.c'),
-                                   str(test / 'palette_test.c'), '-o', str(exe)]
+                                   str(engine / 'Source/platform/dsi/dsi_music.c'), str(test / 'palette_test.c'), '-o', str(exe)]
 result = subprocess.run(args)
 if result.returncode:
     raise SystemExit(result.returncode)

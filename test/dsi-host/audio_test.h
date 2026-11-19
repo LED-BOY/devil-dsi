@@ -9,6 +9,16 @@ static void put32(unsigned off, unsigned value) { put16(off,value); put16(off+2,
 SDL_RWops *DsiOpenAudioAsset(const char *path)
 {
     ++fixture_opens;
+    if (strcmp(path,"music-stream") == 0) {
+        enum { Frames = 20011 };
+        static unsigned char song[44 + Frames * 2];
+        memcpy(fixture,"RIFF",4); put32(4,36+Frames*2); memcpy(fixture+8,"WAVEfmt ",8);
+        put32(16,16); put16(20,1); put16(22,1); put32(24,22050); put32(28,44100);
+        put16(32,2); put16(34,16); memcpy(fixture+36,"data",4); put32(40,Frames*2);
+        memcpy(song,fixture,44);
+        for (unsigned i=0;i<Frames;++i) { song[44+i*2]=i; song[45+i*2]=i>>8; }
+        return SDL_RWFromMem(song,sizeof(song));
+    }
     if (strcmp(path,"missing") == 0) return NULL;
     if (strcmp(path,"oversize") == 0) return SDL_RWFromMem(fixture,sizeof(fixture));
     memset(fixture,0,sizeof(fixture));
@@ -119,6 +129,24 @@ static int CheckAudio(void)
     if (!DsiAudioWarmMonster("next-level-special", 0)) return 0;
     DsiAudioQuit();
     puts("PASS: repeated monster miss survives level preloading under cache pressure");
+    if (!DsiMusicOpen("music-stream", 700) || host_sound_words[15] != 8192) return 0;
+    const int16_t *song = host_sound_pcm[15];
+    if (song[0] != 0 || song[16383] != 16383 || host_sound_volume[15] != 700) return 0;
+    host_ticks += 4096ULL * soundTimerFromHz(22050) / 32;
+    DsiMusicPump();
+    if (song[0] != 16384 || song[3626] != 20010 || song[3627] != 0) return 0;
+    DsiAudioSetEnabled(1);
+    for (int i=0;i<15;++i) if (!DsiAudioPlay(&owners[i],"mono",0,0,0)) return 0;
+    if (DsiAudioPlay(&owners[15],"stereo",0,0,0)) return 0;
+    DsiAudioSetEnabled(0);
+    if (host_sound_active != (1u<<15)) return 0;
+    DsiMusicVolume(0);
+    if (host_sound_volume[15]) return 0;
+    DsiMusicClose();
+    if (host_sound_active || DsiMusicOpen("missing",700)) return 0;
+    if (!DsiMusicOpen("ima",400) || ((const int16_t*)host_sound_pcm[15])[0] != 1000) return 0;
+    DsiMusicClose();
+    puts("PASS: music ring refills across EOF, IMA decoding, volume, disabled effects and voice isolation");
     host_ticks = saved_ticks;
     puts("PASS: warmed monster sounds avoid combat reads; cold loads are paced across tick wrap and skipped at the voice limit");
     puts("PASS: hardware SFX path: SDL PCM8/stereo16/IMA decode, samples/gain/pan, cache reuse/eviction/pinning, voice limit, mute/missing/oversize and shutdown");

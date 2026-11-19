@@ -5,6 +5,13 @@ extern "C" {
 #endif
 /* All calls run on the engine thread. ARM7 performs sample playback. */
 void DsiAudioInit(void);
+void DsiClaimMusicChannel(void);
+void DsiReleaseMusicChannel(void);
+int DsiMusicOpen(const char *path, unsigned volume);
+void DsiMusicClose(void);
+void DsiMusicPump(void);
+void DsiMusicVolume(unsigned volume);
+void DsiApplyMusicSetting(void);
 void DsiAudioSetEnabled(int enabled);
 void DsiAudioQuit(void);
 void DsiAudioClearCache(void);

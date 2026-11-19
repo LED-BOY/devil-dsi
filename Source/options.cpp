@@ -247,6 +247,7 @@ void ApplyDsiOptions()
 	DsiConfigurePerformance(*options.mapRefresh, *options.performanceStats);
 	DsiConfigureMap(*options.topMap);
 	DsiAudioSetEnabled(*options.soundEffects);
+	DsiApplyMusicSetting();
 }
 } // namespace
 
@@ -268,7 +269,8 @@ DsiOptions::DsiOptions()
     , nativeScene("Native Scene Samples", OptionEntryFlags::None, N_("Native Scene Samples"), N_("Render gameplay on the DSi display grid. Requires the standard layout with Graphics Zoom and Per-Pixel Lighting off."), true)
     , fastDrawing("Fast Drawing", OptionEntryFlags::None, N_("Fast Drawing"), N_("Trade world detail for speed. Balanced duplicates rows; Fastest draws 2x2 blocks. Requires Native Scene Samples. Text and HUD use the full display grid."), 1,
           { { 0, N_("Off") }, { 1, N_("Balanced") }, { 2, N_("Fastest") } })
-    , soundEffects("Sound Effects", OptionEntryFlags::None, N_("Sound Effects"), N_("Experimental DSi hardware sound effects. Music and movie audio are not supported. Turn off to reduce memory and CPU use."), true)
+    , soundEffects("Sound Effects", OptionEntryFlags::None, N_("Sound Effects"), N_("Play sound effects using the DSi hardware mixer."), true)
+    , music("Music", OptionEntryFlags::None, N_("Music"), N_("Stream the game soundtrack from your game data."), false)
     , highlightEnemies("Highlight Enemies", OptionEntryFlags::None, N_("Highlight Enemies"), N_("Outline visible enemies in blue and the selected enemy in red. Additional outlines can reduce drawing speed."), false)
     , shoulderDefaultsVersion("Shoulder Defaults Version", OptionEntryFlags::Invisible, "Shoulder Defaults Version", "DSi shoulder default migration version.", 0, { 0, 1 })
 {
@@ -281,11 +283,12 @@ DsiOptions::DsiOptions()
 	lButton.SetValueChangedCallback(ApplyDsiOptions);
 	rButton.SetValueChangedCallback(ApplyDsiOptions);
 	soundEffects.SetValueChangedCallback(ApplyDsiOptions);
+	music.SetValueChangedCallback(ApplyDsiOptions);
 }
 
 std::vector<OptionEntryBase *> DsiOptions::GetEntries()
 {
-	return { &nativeScene, &fastDrawing, &menuZoom, &topMap, &topMapShortcut, &mapScale, &mapRefresh, &performanceStats, &lButton, &rButton, &soundEffects, &highlightEnemies, &shoulderDefaultsVersion };
+	return { &nativeScene, &fastDrawing, &menuZoom, &topMap, &topMapShortcut, &mapScale, &mapRefresh, &performanceStats, &lButton, &rButton, &soundEffects, &music, &highlightEnemies, &shoulderDefaultsVersion };
 }
 #endif
 

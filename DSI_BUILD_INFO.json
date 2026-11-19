@@ -1,6 +1,8 @@
 {
-  "version_suffix": "-DSi-R10",
-  "hardware_tested": true,
+  "version_suffix": "-DSi-R11",
+  "hardware_tested": false,
+  "music_default": false,
+  "item_highlight_hold_ms": 300,
   "native_scene_samples_default": true,
   "fast_drawing_default": "Balanced",
   "map_shortcut_uses_top_map_default": true,
@@ -35,8 +37,8 @@
     "palette_entries": 16,
     "includes_user_icon": true
   },
-  "rom_bytes": 2192384,
-  "rom_sha256": "b6447d98627d782a8a455dd5d1c84adba4e6f825b54d3a2a49aa09e818bc6b2d",
+  "rom_bytes": 2196480,
+  "rom_sha256": "e361ad5502bce9278e3062dd2a62eaaf4387046bead28ac0c66d4f2348a71f95",
   "rom_unit_code": 2,
   "cross_build": "passed",
   "host_tests": "passed",
@@ -78,6 +80,5 @@
         "bytes": 588
       }
     }
-  },
-  "hardware_test": "Maintainer reported successful play on Nintendo DSi; FPS delta unmeasured."
+  }
 }

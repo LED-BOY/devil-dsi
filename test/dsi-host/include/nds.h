@@ -15,11 +15,12 @@ extern unsigned host_sound_active, host_sound_stops;
 extern const void *host_sound_pcm[16];
 extern unsigned host_sound_words[16], host_sound_volume[16], host_sound_pan[16], host_sound_rate[16];
 typedef enum { SoundOutSrc_Mixer } SoundOutSrc;
-typedef enum { SoundMode_OneShot } SoundMode;
+typedef enum { SoundMode_OneShot, SoundMode_Repeat } SoundMode;
 typedef enum { SoundFmt_Pcm16 } SoundFmt;
 #define SOUND_START (1u << 4)
 static inline void soundInit(void) { }
 static inline void soundPowerOn(void) { }
+static inline void soundChSetVolume(unsigned ch, unsigned volume) { host_sound_volume[ch] = volume; }
 static inline void soundSetMixerVolume(unsigned volume) { }
 static inline void soundSetMixerConfig(SoundOutSrc a, SoundOutSrc b, int c, int d) { }
 static inline void soundSetAutoUpdate(int enabled) { }
@@ -41,6 +42,14 @@ static inline void soundPreparePcm(unsigned ch, unsigned volume, unsigned pan, u
 #define VRAM_A_MAIN_BG_0x06000000 0
 #define BgType_Bmp8 0
 #define BgSize_B8_256x256 0
+#define KEY_X (1u << 10)
+#define KEY_START (1u << 3)
+#define KEY_SELECT (1u << 2)
+#define BgType_Bmp16 1
+#define BgSize_B16_256x256 1
+#define VRAM_B_MAIN_BG_0x06020000 1
+static inline void vramSetBankB(int bank) { }
+static inline void bgSetPriority(int bg, int priority) { }
 #define KEY_TOUCH (1u << 14)
 #define KEY_R (1u << 8)
 #define KEY_L (1u << 9)
@@ -52,11 +61,11 @@ static inline int isDSiMode(void) { return 1; }
 static inline void videoSetMode(int mode) { }
 static inline void videoSetModeSub(int mode) { }
 static inline void vramSetBankA(int mode) { }
-static inline int bgInit(int a, int b, int c, int d, int e) { return 0; }
+static inline int bgInit(int a, int b, int c, int d, int e) { return a == 2 ? 2 : 0; }
 static inline int bgInitSub(int a, int b, int c, int d, int e) { return 7; }
 static inline void bgShow(int bg) { host_visible_backgrounds |= 1u << bg; }
 static inline void bgHide(int bg) { host_visible_backgrounds &= ~(1u << bg); }
-static inline volatile uint16_t *bgGetGfxPtr(int bg) { return bg == 7 ? host_sub_vram : host_vram; }
+static inline volatile uint16_t *bgGetGfxPtr(int bg) { static uint16_t overlay[256*192]; return bg == 2 ? overlay : bg == 7 ? host_sub_vram : host_vram; }
 static inline void lcdMainOnBottom(void) { host_main_on_bottom = 1; }
 static inline void scanKeys(void) { host_previous_keys = host_scanned_keys; host_scanned_keys = host_key_state; }
 static inline u32 keysDown(void) { return host_scanned_keys & ~host_previous_keys; }

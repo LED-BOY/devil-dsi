@@ -210,6 +210,28 @@ int main(void)
     if (!CheckR5Settings(screen)) return 1;
     if (!CheckR6(screen)) { puts("FAIL: R6 regression"); return 1; }
     if (!CheckPotionAction()) { puts("FAIL: potion input regression"); return 1; }
+    DsiSetTopView(DSI_TOP_MAP);
+    host_key_state = KEY_X; SDL_PumpEvents();
+    if (SDL_GetKeyState(NULL)[SDLK_F4] || DsiGroundItemsHeld()) return 1;
+    host_ticks += 300000; SDL_PumpEvents();
+    if (!DsiGroundItemsHeld()) return 1;
+    DsiBeginItemOutlines(); DsiItemOutlinePixel(72,40); SDL_Flip(screen);
+    if ((host_visible_backgrounds & (1u<<2)) == 0) return 1;
+    host_key_state = 0; SDL_PumpEvents();
+    if (DsiGroundItemsHeld() || (host_visible_backgrounds & (1u<<2))) return 1;
+    while (SDL_PollEvent(&event)) {
+        if ((event.type==SDL_KEYUP || event.type==SDL_KEYDOWN) && event.key.keysym.sym==SDLK_F4) return 1;
+    }
+    host_key_state = KEY_X; SDL_PumpEvents();
+    host_ticks += 150000;
+    host_key_state = 0; SDL_PumpEvents();
+    int x_down=0, x_up=0;
+    while (SDL_PollEvent(&event)) {
+        if (event.type==SDL_KEYDOWN && event.key.keysym.sym==SDLK_F4) ++x_down;
+        if (event.type==SDL_KEYUP && event.key.keysym.sym==SDLK_F4) ++x_up;
+    }
+    if (x_down!=1 || x_up!=1) return 1;
+    puts("PASS: tap X sends one interaction, hold X shows and releases loot without interacting");
     if (!CheckAudio()) { puts("FAIL: audio regression"); return 1; }
     DsiSetTopView(DSI_TOP_MENU);
     DsiSetLoading(1);

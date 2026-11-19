@@ -15,7 +15,7 @@ typedef struct { const void *owner; Clip *clip; } Voice;
 static Clip clips[CLIPS];
 static Voice voices[VOICES];
 static unsigned cache_bytes, age;
-static int ready;
+static int ready, hardware_ready, music_channel;
 static Uint32 monster_load_finished;
 static int monster_load_recent;
 
@@ -139,12 +139,18 @@ static Clip *decode_clip(const char *path, unsigned warm_priority)
     return slot;
 }
 
-void DsiAudioInit(void)
+static void init_hardware(void)
 {
-    if (ready) return;
+    if (hardware_ready) return;
+    hardware_ready = 1;
     soundInit(); soundPowerOn(); soundSetMixerVolume(127);
     soundSetMixerConfig(SoundOutSrc_Mixer, SoundOutSrc_Mixer, 0, 0);
     soundSetAutoUpdate(1);
+}
+
+void DsiAudioInit(void)
+{
+    init_hardware();
     ready = 1;
 }
 
@@ -157,13 +163,42 @@ void DsiAudioStop(const void *owner)
     for (int i = 0; i < VOICES; ++i) if (mask & (1u << i)) { voices[i].owner = NULL; voices[i].clip = NULL; }
 }
 
+/* Music borrows channel 15 only while its stream is open. */
+void DsiClaimMusicChannel(void)
+{
+    init_hardware();
+    soundStop(1u << 15);
+    soundSynchronize();
+    voices[15].owner = NULL;
+    voices[15].clip = NULL;
+    music_channel = 1;
+}
+
+static void idle_hardware(void)
+{
+    if (hardware_ready && !ready && !music_channel) {
+        soundSetAutoUpdate(0);
+        hardware_ready = 0;
+    }
+}
+
+void DsiReleaseMusicChannel(void)
+{
+    if (!music_channel) return;
+    soundStop(1u << 15);
+    soundSynchronize();
+    music_channel = 0;
+    idle_hardware();
+}
+
 static int play(const void *owner, const char *path, int attenuation, int pan, int user_volume, int monster)
 {
     if (!ready || !owner || !path || user_volume <= -1600) return 0;
     collect_finished();
     int channel;
-    for (channel = 0; channel < VOICES; ++channel) if (!voices[channel].owner) break;
-    if (channel == VOICES) return 0;
+    const int limit = VOICES - music_channel;
+    for (channel = 0; channel < limit; ++channel) if (!voices[channel].owner) break;
+    if (channel == limit) return 0;
 
     Clip *clip = find_clip(path);
     if (!clip) {
@@ -240,7 +275,7 @@ unsigned DsiAudioCacheBytes(void) { return cache_bytes; }
 void DsiAudioClearCache(void)
 {
     if (!ready) return;
-    soundStop(0xffff); soundSynchronize();
+    soundStop(music_channel ? 0x7fff : 0xffff); soundSynchronize();
     SDL_memset(voices, 0, sizeof(voices));
     for (int i = 0; i < CLIPS; ++i) if (clips[i].pcm) evict(&clips[i]);
     monster_load_recent = 0;
@@ -249,6 +284,6 @@ void DsiAudioQuit(void)
 {
     if (!ready) return;
     DsiAudioClearCache();
-    soundSetAutoUpdate(0); ready = 0;
+    ready = 0; idle_hardware();
 }
 void DsiAudioSetEnabled(int enabled) { if (enabled) DsiAudioInit(); else DsiAudioQuit(); }

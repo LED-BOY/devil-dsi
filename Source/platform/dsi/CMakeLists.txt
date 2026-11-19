@@ -8,7 +8,7 @@ file(GLOB _sdl_src
   "${_sdl}/src/thread/*.c" "${_sdl}/src/thread/generic/*.c"
   "${_sdl}/src/timer/*.c" "${_sdl}/src/video/*.c")
 list(FILTER _sdl_src EXCLUDE REGEX "SDL_sysmutex.c$")
-add_library(SDL_dsi STATIC ${_sdl_src} sdl_dsi.c dsi_video.c dsi_render.c dsi_trace.c dsi_audio.c)
+add_library(SDL_dsi STATIC ${_sdl_src} sdl_dsi.c dsi_video.c dsi_render.c dsi_trace.c dsi_audio.c dsi_music.c)
 # Only the small hot kernels use ARM code and speed optimization; the engine
 # remains size optimized apart from the selected renderer files below.
 set_source_files_properties(dsi_video.c dsi_render.c PROPERTIES COMPILE_OPTIONS "-O2;-marm")

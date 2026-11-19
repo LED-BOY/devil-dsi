@@ -9,11 +9,38 @@
 #include "dsi_video.h"
 #include "dsi_render.h"
 #include "dsi_trace.h"
+#include "dsi_audio.h"
 
 struct SDL_PrivateVideoData { void *pixels; int bg; };
 static u64 start_ticks;
 static enum DsiTopView top_view;
-static int top_bg = -1;
+static int top_bg = -1, loot_bg = -1;
+static volatile uint16_t *loot_pixels;
+static int x_pending, x_highlight, loot_drawn;
+static Uint32 x_started;
+static int loot_top, loot_bottom;
+
+int DsiGroundItemsHeld(void) { return x_highlight; }
+
+void DsiBeginItemOutlines(void)
+{
+    if (!x_highlight || !loot_pixels) return;
+    if (loot_drawn) {
+        for (int i = loot_top * 256; i < (loot_bottom + 1) * 256; ++i) loot_pixels[i] = 0;
+    }
+    loot_drawn = 0;
+    loot_top = DSI_HEIGHT;
+    loot_bottom = -1;
+}
+
+void DsiItemOutlinePixel(int x, int y)
+{
+    if ((unsigned)x >= DSI_WIDTH || (unsigned)y >= DSI_HEIGHT || !loot_pixels) return;
+    loot_pixels[y * 256 + x] = 0x83e0; /* opaque green on its own bitmap layer */
+    if (y < loot_top) loot_top = y;
+    if (y > loot_bottom) loot_bottom = y;
+    loot_drawn = 1;
+}
 static uint16_t console_palette[256], game_palette[256];
 static uint8_t map_pixels[DSI_WIDTH * DSI_HEIGHT];
 static int reading_x = 320, reading_y = 240, focus_x = -1, focus_y = -1;
@@ -158,6 +185,11 @@ void DsiSetTopView(enum DsiTopView view)
     if (view == DSI_TOP_MOVIE || view == DSI_TOP_DIAGNOSTICS) DsiDiscardPackedScene();
     if (top_view == view) return;
     top_view = view;
+    if (view != DSI_TOP_MAP) {
+        x_highlight = 0;
+        if (x_pending) x_pending = 2; /* swallow release after a view change */
+        if (loot_bg >= 0) bgHide(loot_bg);
+    }
     map_valid = 0;
     map_pending = 1;
     if (view != DSI_TOP_MAP) {
@@ -256,6 +288,13 @@ static int video_init(SDL_VideoDevice *_this, SDL_PixelFormat *format)
     videoSetMode(MODE_5_2D);
     vramSetBankA(VRAM_A_MAIN_BG_0x06000000);
     _this->hidden->bg = bgInit(3, BgType_Bmp8, BgSize_B8_256x256, 0, 0);
+    vramSetBankB(VRAM_B_MAIN_BG_0x06020000);
+    loot_bg = bgInit(2, BgType_Bmp16, BgSize_B16_256x256, 8, 0);
+    bgHide(loot_bg);
+    bgSetPriority(loot_bg, 0);
+    bgSetPriority(_this->hidden->bg, 1);
+    loot_pixels = bgGetGfxPtr(loot_bg);
+    for (unsigned i = 0; i < 256 * 192; ++i) loot_pixels[i] = 0;
     /* Main-engine graphics on the touch LCD; the sub-engine console moves up. */
     lcdMainOnBottom();
     /* Keep console tiles/map in the first 64 KiB of VRAM C. The 8-bit top
@@ -296,6 +335,7 @@ static void update(SDL_VideoDevice *_this, int count, SDL_Rect *rects)
 {
     SDL_Surface *surface = _this->screen;
     if (!surface || !surface->pixels) return;
+    if (x_highlight && loot_drawn) bgShow(loot_bg); else bgHide(loot_bg);
     u64 started = DsiPerfClock();
     unsigned scene_rows;
     const uint8_t *scene = top_view == DSI_TOP_MAP
@@ -358,6 +398,7 @@ static void pump_events(SDL_VideoDevice *_this)
     static const u32 shoulder_bits[2] = { KEY_L, KEY_R };
     static int active_action[2], pending[2], mouse_down[2];
     static Uint32 press_time[2];
+    DsiMusicPump();
     scanKeys();
     u32 held = keysHeld();
     const int reading_control = top_view == DSI_TOP_MENU
@@ -393,6 +434,23 @@ static void pump_events(SDL_VideoDevice *_this)
     u32 effective_keys = held & ~blocked_keys;
     u32 down = effective_keys & ~delivered_keys, up = delivered_keys & ~effective_keys;
     delivered_keys = effective_keys;
+    const u32 modifiers = KEY_START | KEY_SELECT;
+    if ((down & KEY_X) && top_view == DSI_TOP_MAP && !(held & modifiers)) {
+        x_pending = 1;
+        x_started = SDL_GetTicks();
+    }
+    if (x_pending) {
+        const Uint32 elapsed = SDL_GetTicks() - x_started;
+        down &= ~KEY_X;
+        if (held & modifiers) x_pending = 2;
+        x_highlight = x_pending == 1 && (held & KEY_X) && elapsed >= 300;
+        if (!x_highlight && loot_bg >= 0) bgHide(loot_bg);
+        if (up & KEY_X) {
+            if (x_pending == 1 && elapsed < 300) down |= KEY_X; /* deliver tap on release */
+            else up &= ~KEY_X;
+            x_pending = 0;
+        }
+    }
     for (int i = 0; i < 2; ++i)
         if (down & shoulder_bits[i]) active_action[i] = shoulder_action[i];
     if (down & 0xfff) { manual_reading = 0; focus_x = focus_y = -1; }

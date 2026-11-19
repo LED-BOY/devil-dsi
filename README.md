@@ -1,3 +1,7 @@
+# DevilutionX for Nintendo DSi — R11
+
+See [R11 notes and installation](R11_NOTES.md) for hold-X item outlines and optional streamed music.
+
 # DevilutionX for Nintendo DSi — R10
 
 See [R10 notes and installation](R10_NOTES.md) and [download R10](https://github.com/LED-BOY/devil-dsi/releases/tag/r10). The maintainer tested this build on DSi hardware.

@@ -764,6 +764,10 @@ void DrawItem(const Surface &out, int8_t itemIndex, Point targetBufferPosition, 
 	if (!IsPlayerInStore() && (itemIndex == pcursitem || AutoMapShowItems)) {
 		ClxDrawOutlineSkipColorZero(out, GetOutlineColor(item, false), position, sprite);
 	}
+#ifdef __DSI__
+	if (DsiGroundItemsHeld() && !IsPlayerInStore())
+		ClxDrawDsiLootOutline(out, position, sprite, *GetOptions().Graphics.zoom ? 2 : 1, gnScreenWidth, gnScreenHeight);
+#endif
 	ClxDrawLight(out, position, sprite, lightTableIndex);
 	if (item.AnimInfo.isLastFrame() || item._iCurs == ICURS_MAGIC_ROCK)
 		AddItemToLabelQueue(itemIndex, position);
@@ -1311,6 +1315,9 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset, [[may
 
 
 
+#ifdef __DSI__
+	DsiBeginItemOutlines();
+#endif
 	UpdateMissilesRendererData();
 
 

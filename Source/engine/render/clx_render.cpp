@@ -5,6 +5,10 @@
  */
 #include "clx_render.hpp"
 
+#ifdef __DSI__
+#include "platform/dsi/dsi_video.h"
+#endif
+
 #include <algorithm>
 #include <cstdint>
 #include <format>
@@ -652,6 +656,22 @@ void ClxDrawOutlineSkipColorZero(const Surface &out, uint8_t col, Point position
 {
 	RenderClxOutline</*SkipColorIndexZero=*/true>(out, position, clx, col);
 }
+
+#ifdef __DSI__
+void ClxDrawDsiLootOutline(const Surface &out, Point position, ClxSprite sprite, int scale, int width, int height)
+{
+	if (!DsiSpriteVisible(position.x - 1, position.y + 1, sprite.width() + 2, sprite.height() + 2, out.w(), out.h()))
+		return;
+	--position.x;
+	position.y -= sprite.height();
+	for (const auto &[dx, dy] : UpdateOutlinePixelsCache<true>(sprite)) {
+		const int x = position.x + dx;
+		const int y = position.y + dy;
+		if (x >= 0 && x < out.w() && y >= 0 && y < out.h())
+			DsiItemOutlinePixel(x * scale * DSI_WIDTH / width, y * scale * DSI_HEIGHT / height);
+	}
+}
+#endif
 
 void ClearClxDrawCache()
 {

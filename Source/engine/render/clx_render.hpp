@@ -122,6 +122,9 @@ std::pair<int, int> ClxMeasureSolidHorizontalBounds(ClxSprite clx);
  *
  * Must be called whenever CLX sprites are freed.
  */
+#ifdef __DSI__
+void ClxDrawDsiLootOutline(const Surface &out, Point position, ClxSprite sprite, int scale, int width, int height);
+#endif
 void ClearClxDrawCache();
 
 #ifdef DEBUG_CLX
